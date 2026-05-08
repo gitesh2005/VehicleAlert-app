@@ -1,0 +1,233 @@
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '@/constants/theme';
+
+import { useRouter } from 'expo-router';
+
+export default function LoginScreen() {
+  const router = useRouter();
+  const [phoneNumber, setPhoneNumber] = useState('');
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.content}
+      >
+        <View style={styles.header}>
+          <LinearGradient
+            colors={['#007AFF', '#00C6FF']}
+            style={styles.logoCircle}
+          >
+            <Text style={styles.logoText}>VA</Text>
+          </LinearGradient>
+          <Text style={styles.appName}>VehicleAlert</Text>
+          <Text style={styles.tagline}>Connect. Alert. Resolve.</Text>
+        </View>
+
+        <View style={styles.form}>
+          <View style={styles.inputContainer}>
+            <View style={styles.countryCode}>
+              <Text style={styles.flag}>🇮🇳</Text>
+              <Text style={styles.codeText}>+91</Text>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Mobile Number"
+              placeholderTextColor={Colors.dark.gray}
+              keyboardType="phone-pad"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+            />
+          </View>
+
+          <TouchableOpacity 
+            activeOpacity={0.8} 
+            style={styles.buttonWrapper}
+            onPress={() => router.push('/otp')}
+          >
+            <LinearGradient
+              colors={['#007AFF', '#0055FF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.gradientButton}
+            >
+              <Text style={styles.buttonText}>Send OTP</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity activeOpacity={0.8} style={styles.googleButton}>
+            <Ionicons name="logo-google" size={20} color="white" style={styles.googleIcon} />
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.privacyNote}>
+            By continuing, you agree to our{' '}
+            <Text style={styles.linkText}>Terms of Service</Text> and{' '}
+            <Text style={styles.linkText}>Privacy Policy</Text>
+          </Text>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+    paddingTop: 60,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 48,
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  logoText: {
+    color: 'white',
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  appName: {
+    color: 'white',
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  tagline: {
+    color: Colors.dark.gray,
+    fontSize: 16,
+  },
+  form: {
+    width: '100%',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    height: 56,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+  },
+  countryCode: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderRightWidth: 1,
+    borderRightColor: '#2C2C2E',
+  },
+  flag: {
+    fontSize: 20,
+    marginRight: 4,
+  },
+  codeText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  input: {
+    flex: 1,
+    color: 'white',
+    fontSize: 16,
+    paddingHorizontal: 16,
+  },
+  buttonWrapper: {
+    marginBottom: 24,
+  },
+  gradientButton: {
+    height: 56,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#2C2C2E',
+  },
+  dividerText: {
+    color: Colors.dark.gray,
+    marginHorizontal: 16,
+    fontSize: 14,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleIcon: {
+    marginRight: 12,
+  },
+  googleButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  footer: {
+    marginTop: 'auto',
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  privacyNote: {
+    color: Colors.dark.gray,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  linkText: {
+    color: '#007AFF',
+  },
+});
