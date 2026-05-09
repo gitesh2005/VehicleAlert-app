@@ -8,6 +8,7 @@ import {
   ScrollView,
   StatusBar,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,9 +20,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const quickActions = [
     { id: '1', emoji: '🚗', label: 'Register\nVehicle', color: '#1a237e' },
-    { id: '2', icon: 'magnify', label: 'Search\nVehicle', color: '#1b5e20' },
-    { id: '3', icon: 'bullhorn-outline', label: 'Send\nAlert', color: '#bf360c' },
-    { id: '4', icon: 'clipboard-list-outline', label: 'My\nAlerts', color: '#4a148c' },
+    { id: '2', emoji: '📢', label: 'Send\nAlert', color: '#bf360c' },
+    { id: '3', emoji: '📊', label: 'My\nStats', color: '#1b5e20' },
+    { id: '4', emoji: '🆘', label: 'Emergency', color: '#b71c1c' },
   ];
 
   const activities = [
@@ -48,12 +49,23 @@ export default function HomeScreen() {
     },
   ];
 
-  const handleSendAlertNavigation = () => {
-    router.push('/search');
-  };
-
-  const handleSearchNavigation = () => {
-    router.push('/search');
+  const handleActionPress = (id: string) => {
+    switch (id) {
+      case '1':
+        Alert.alert("Coming Soon!");
+        break;
+      case '2':
+        router.push('/send-alert');
+        break;
+      case '3':
+        router.push('/profile');
+        break;
+      case '4':
+        Alert.alert("Calling 112...");
+        break;
+      default:
+        break;
+    }
   };
 
   return (
@@ -99,11 +111,7 @@ export default function HomeScreen() {
               <TouchableOpacity 
                 key={action.id} 
                 style={[styles.actionCard, { backgroundColor: action.color }]}
-                onPress={
-                  action.id === '2' ? handleSearchNavigation : 
-                  action.id === '3' ? handleSendAlertNavigation : 
-                  undefined
-                }
+                onPress={() => handleActionPress(action.id)}
               >
                 <View style={styles.actionIconCircle}>
                   {action.emoji ? (

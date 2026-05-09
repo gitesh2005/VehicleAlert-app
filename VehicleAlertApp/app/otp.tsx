@@ -9,15 +9,19 @@ import {
   Platform,
   SafeAreaView,
   Animated,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 export default function OTPScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const phoneNumberFromParams = params.phone as string;
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const [timer, setTimer] = useState(42);
 
@@ -84,6 +88,25 @@ export default function OTPScreen() {
     return `0${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  const handleVerifyOTP = async () => {
+    const code = otp.join('');
+    console.log('Mocking OTP verification for code:', code);
+    
+    if (code.length < 6) {
+      Alert.alert('Invalid OTP', 'Please enter a 6-digit verification code.');
+      return;
+    }
+
+    setLoading(true);
+    // TODO: Add real Firebase Phone Auth before production
+    // Native Firebase Phone Auth requires native build, mocking for Expo Go demo
+    setTimeout(() => {
+      setLoading(false);
+      console.log('Mock verification success');
+      router.push('/welcome');
+    }, 1000);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -113,7 +136,7 @@ export default function OTPScreen() {
           <View style={styles.subtitleContainer}>
             <Text style={styles.subtitle}>We&apos;ve sent a 6-digit OTP to</Text>
             <View style={styles.phoneRow}>
-              <Text style={styles.phoneNumber}>+91 98765 43210</Text>
+              <Text style={styles.phoneNumber}>{phoneNumberFromParams || '+91 98765 43210'}</Text>
               <TouchableOpacity style={styles.editIcon}>
                 <Ionicons name="pencil" size={14} color="#007AFF" />
               </TouchableOpacity>
@@ -146,15 +169,18 @@ export default function OTPScreen() {
         <TouchableOpacity 
           activeOpacity={0.8} 
           style={styles.buttonWrapper}
-          onPress={() => router.push('/welcome')}
+          onPress={handleVerifyOTP}
+          disabled={loading}
         >
           <LinearGradient
             colors={['#007AFF', '#0055FF']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.gradientButton}
+            style={[styles.gradientButton, loading && { opacity: 0.7 }]}
           >
-            <Text style={styles.buttonText}>Verify & Continue ✓</Text>
+            <Text style={styles.buttonText}>
+              {loading ? 'Verifying...' : 'Verify & Continue ✓'}
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
 

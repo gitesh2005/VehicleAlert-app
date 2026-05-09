@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,41 @@ import { useRouter } from 'expo-router';
 export default function LoginScreen() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handlePhoneChange = (text: string) => {
+    // Only allow numbers
+    const cleaned = text.replace(/[^0-9]/g, '');
+    // Limit to 10 digits
+    if (cleaned.length <= 10) {
+      setPhoneNumber(cleaned);
+      if (cleaned.length === 10) {
+        setError('');
+      }
+    }
+  };
+
+  const handleSendOTP = async () => {
+    if (phoneNumber.length < 10) {
+      setError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+    
+    setLoading(true);
+    // TODO: Add real Firebase Phone Auth before production
+    // Native Firebase Phone Auth requires native build, mocking for Expo Go demo
+    setTimeout(() => {
+      const fullPhoneNumber = `+91${phoneNumber}`;
+      setLoading(false);
+      router.push({
+        pathname: '/otp',
+        params: { phone: fullPhoneNumber }
+      });
+    }, 1000);
+  };
+
+  const isButtonDisabled = loading || phoneNumber.length !== 10;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -37,7 +73,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, error ? styles.inputError : null]}>
             <View style={styles.countryCode}>
               <Text style={styles.flag}>🇮🇳</Text>
               <Text style={styles.codeText}>+91</Text>
@@ -46,24 +82,30 @@ export default function LoginScreen() {
               style={styles.input}
               placeholder="Mobile Number"
               placeholderTextColor={Colors.dark.gray}
-              keyboardType="phone-pad"
+              keyboardType="number-pad"
               value={phoneNumber}
-              onChangeText={setPhoneNumber}
+              onChangeText={handlePhoneChange}
+              maxLength={10}
             />
           </View>
+          
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <TouchableOpacity 
             activeOpacity={0.8} 
             style={styles.buttonWrapper}
-            onPress={() => router.push('/otp')}
+            onPress={handleSendOTP}
+            disabled={isButtonDisabled}
           >
             <LinearGradient
-              colors={['#007AFF', '#0055FF']}
+              colors={isButtonDisabled ? ['#2C2C2E', '#2C2C2E'] : ['#007AFF', '#0055FF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.gradientButton}
+              style={[styles.gradientButton, loading && { opacity: 0.7 }]}
             >
-              <Text style={styles.buttonText}>Send OTP</Text>
+              <Text style={[styles.buttonText, isButtonDisabled && { color: '#8E8E93' }]}>
+                {loading ? 'Sending...' : 'Send OTP'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -146,6 +188,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#2C2C2E',
+  },
+  inputError: {
+    borderColor: '#FF4444',
+  },
+  errorText: {
+    color: '#FF4444',
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 16,
+    marginLeft: 4,
   },
   countryCode: {
     flexDirection: 'row',
