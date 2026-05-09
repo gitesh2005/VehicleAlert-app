@@ -37,7 +37,7 @@ Voice: Picovoice Porcupine — Hey Vehicle (planned)
 
 🌐 Links
 
-Website: vehiclealert.netlify.app
+Website: https://vehiclealert.netlify.app
 Figma Design: 9 screens completed
 
 📊 Survey Results
