@@ -4,13 +4,12 @@ import { getAuth, Auth, ConfirmationResult } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyBD_u83lOlnDqzEqU_YJKkwpn4aAIR4Mgo",
-  authDomain: "vehiclealert-772d3.firebaseapp.com",
-  projectId: "vehiclealert-772d3",
-  storageBucket: "vehiclealert-772d3.firebasestorage.app",
-  messagingSenderId: "678227503644",
-  appId: "1:678227503644:web:7db1dad20b59f1ce2ccdd9",
-  measurementId: "G-YZ0VQ246D5"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);
