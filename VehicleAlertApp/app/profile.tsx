@@ -29,7 +29,8 @@ export default function ProfileScreen() {
   const menuItems = [
     { id: '1', emoji: '🔔', label: 'Notification Settings' },
     { id: '2', emoji: '🔒', label: 'Privacy & Security' },
-    { id: '3', emoji: '❓', label: 'Help & Support' },
+    { id: '3', emoji: '🛡️', label: 'Account Status', route: '/account-blocked' },
+    { id: '4', emoji: '❓', label: 'Help & Support' },
   ];
 
   return (
@@ -88,7 +89,11 @@ export default function ProfileScreen() {
             {/* Settings Menu */}
             <View style={styles.section}>
               {menuItems.map((item) => (
-                <TouchableOpacity key={item.id} style={styles.menuRow}>
+                <TouchableOpacity 
+                  key={item.id} 
+                  style={styles.menuRow}
+                  onPress={() => item.route && router.push(item.route as any)}
+                >
                   <View style={styles.menuLeft}>
                     <Text style={styles.menuEmoji}>{item.emoji}</Text>
                     <Text style={styles.menuLabel}>{item.label}</Text>
@@ -123,7 +128,7 @@ export default function ProfileScreen() {
           <Ionicons name="search-outline" size={24} color="#8e8e93" />
           <Text style={styles.navText}>Search</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/alerts')}>
           <Ionicons name="notifications-outline" size={24} color="#8e8e93" />
           <Text style={styles.navText}>Alerts</Text>
         </TouchableOpacity>

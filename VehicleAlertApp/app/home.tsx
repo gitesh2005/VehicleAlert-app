@@ -126,7 +126,11 @@ export default function HomeScreen() {
 
           <View style={styles.activitiesList}>
             {activities.map((activity) => (
-              <TouchableOpacity key={activity.id} style={styles.activityCard}>
+              <TouchableOpacity 
+                key={activity.id} 
+                style={styles.activityCard}
+                onPress={() => router.push('/report-false-alert')}
+              >
                 <View style={styles.activityLeft}>
                   <View style={styles.activityIconWrapper}>
                     <MaterialCommunityIcons name={activity.icon as any} size={24} color="white" />
@@ -148,11 +152,11 @@ export default function HomeScreen() {
           <Ionicons name="home" size={24} color="#007AFF" />
           <Text style={[styles.navText, { color: '#007AFF' }]}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={handleSearchNavigation}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/search')}>
           <Ionicons name="search-outline" size={24} color="#8E8E93" />
           <Text style={styles.navText}>Search</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/alerts')}>
           <Ionicons name="notifications-outline" size={24} color="#8E8E93" />
           <Text style={styles.navText}>Alerts</Text>
         </TouchableOpacity>

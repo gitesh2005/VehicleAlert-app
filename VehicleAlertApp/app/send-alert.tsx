@@ -85,12 +85,20 @@ export default function SendAlertScreen() {
         >
           <SafeAreaView>
             <View style={styles.headerContent}>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={styles.backButton}
-              >
-                <Text style={styles.backText}>← Back</Text>
-              </TouchableOpacity>
+              <View style={styles.topRow}>
+                <TouchableOpacity
+                  onPress={() => router.back()}
+                  style={styles.backButton}
+                >
+                  <Text style={styles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={() => router.push('/report-false-alert')}
+                  style={styles.menuButton}
+                >
+                  <Text style={styles.menuDots}>•••</Text>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.headerTitle}>Send Alert</Text>
             </View>
           </SafeAreaView>
@@ -98,7 +106,11 @@ export default function SendAlertScreen() {
 
         <View style={styles.mainContent}>
           {/* Vehicle Info Card */}
-          <View style={styles.vehicleCard}>
+          <TouchableOpacity 
+            activeOpacity={0.9}
+            onLongPress={() => router.push('/report-false-alert')}
+            style={styles.vehicleCard}
+          >
             <View style={styles.vehicleInfoLeft}>
               <Text style={styles.carEmoji}>🚗</Text>
               <Text style={styles.vehicleNumberText}>{displayVehicleNumber}</Text>
@@ -107,7 +119,7 @@ export default function SendAlertScreen() {
               <Text style={styles.lockEmoji}>🔒</Text>
               <Text style={styles.anonymousText}>Anonymous</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* Alert Type Section */}
           <Text style={styles.sectionTitle}>Select Alert Type</Text>
@@ -201,6 +213,21 @@ const styles = StyleSheet.create({
   backText: {
     color: '#8b949e',
     fontSize: 16,
+  },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  menuButton: {
+    padding: 4,
+  },
+  menuDots: {
+    color: '#8b949e',
+    fontSize: 18,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
   headerTitle: {
     color: '#ffffff',

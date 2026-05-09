@@ -133,7 +133,7 @@ export default function SearchScreen() {
           <Ionicons name="search" size={24} color="#007AFF" />
           <Text style={[styles.navText, { color: '#007AFF' }]}>Search</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/alerts')}>
           <Ionicons name="notifications-outline" size={24} color="#8E8E93" />
           <Text style={styles.navText}>Alerts</Text>
         </TouchableOpacity>
