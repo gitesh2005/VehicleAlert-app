@@ -6,6 +6,8 @@ Connect. Alert. Resolve.
 ![Status](https://img.shields.io/badge/Status-In%20Development-orange)
 ![Platform](https://img.shields.io/badge/Platform-Android-green)
 ![Made in India](https://img.shields.io/badge/Made%20in-India%20🇮🇳-blue)
+
+
 About
 VehicleAlert is India's first anonymous vehicle alert mobile app. Built with React Native and Expo, it allows vehicle owners to register their vehicles and receive anonymous alerts from other road users — without sharing any personal information.
 ✅ Progress So Far
