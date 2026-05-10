@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -13,11 +13,30 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { db } from '../src/config/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const router = useRouter();
+
+  useEffect(() => {
+    // Test Firestore connection
+    const testFirebase = async () => {
+      try {
+        const docRef = await addDoc(collection(db, 'test'), {
+          message: 'Firebase connected!',
+          timestamp: new Date()
+        });
+        console.log('✅ Firebase Connected! Doc ID:', docRef.id);
+      } catch (error) {
+        console.error('❌ Firebase Error:', error);
+      }
+    };
+
+    testFirebase();
+  }, []);
   const quickActions = [
     { id: '1', emoji: '🚗', label: 'Register\nVehicle', color: '#1a237e' },
     { id: '2', emoji: '📢', label: 'Send\nAlert', color: '#bf360c' },
