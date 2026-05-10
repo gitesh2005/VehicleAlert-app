@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -13,14 +13,17 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
-
 import { useRouter } from 'expo-router';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { auth, firebaseConfig, setConfirmationResult } from '../src/config/firebase';
+import { PhoneAuthProvider, signInWithPhoneNumber } from 'firebase/auth';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
 
   const handlePhoneChange = (text: string) => {
     // Only allow numbers
@@ -41,22 +44,40 @@ export default function LoginScreen() {
     }
     
     setLoading(true);
-    // TODO: Add real Firebase Phone Auth before production
-    // Native Firebase Phone Auth requires native build, mocking for Expo Go demo
-    setTimeout(() => {
-      const fullPhoneNumber = `+91${phoneNumber}`;
+    const fullPhoneNumber = `+91${phoneNumber}`;
+
+    try {
+      if (!recaptchaVerifier.current) return;
+      
+      const confirmation = await signInWithPhoneNumber(
+        auth,
+        fullPhoneNumber,
+        recaptchaVerifier.current as any
+      );
+      
+      setConfirmationResult(confirmation);
       setLoading(false);
+      
       router.push({
         pathname: '/otp',
         params: { phone: fullPhoneNumber }
       });
-    }, 1000);
+    } catch (err: any) {
+      setLoading(false);
+      console.error('Firebase Auth Error:', err);
+      Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
+    }
   };
 
   const isButtonDisabled = loading || phoneNumber.length !== 10;
 
   return (
     <SafeAreaView style={styles.container}>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={true}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
