@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,69 +9,59 @@ import {
   StatusBar,
   Dimensions,
   Alert,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { db } from '../src/config/firebase';
-import { collection, addDoc } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
+
+const QUICK_ACTIONS = [
+  { id: '1', emoji: '🚗', label: 'Register\nVehicle', color: '#1a237e' },
+  { id: '2', emoji: '📢', label: 'Send\nAlert', color: '#bf360c' },
+  { id: '3', emoji: '📊', label: 'My\nStats', color: '#1b5e20' },
+  { id: '4', emoji: '🆘', label: 'Emergency', color: '#b71c1c' },
+] as const;
+
+const ACTIVITIES = [
+  {
+    id: '1',
+    title: 'Wrong Parking Alert',
+    desc: 'MH 12 AB 3456 • 2 hours ago',
+    statusColor: '#FF9500',
+    icon: 'parking' as const,
+  },
+  {
+    id: '2',
+    title: 'Headlights Left On',
+    desc: 'DL 8C 7890 • Yesterday',
+    statusColor: '#FFCC00',
+    icon: 'lightbulb-outline' as const,
+  },
+  {
+    id: '3',
+    title: 'Issue Resolved',
+    desc: 'KA 05 MN 2345 • 2 days ago',
+    statusColor: '#34C759',
+    icon: 'check-circle-outline' as const,
+  },
+];
 
 export default function HomeScreen() {
   const router = useRouter();
 
-  useEffect(() => {
-    // Test Firestore connection
-    const testFirebase = async () => {
-      try {
-        const docRef = await addDoc(collection(db, 'test'), {
-          message: 'Firebase connected!',
-          timestamp: new Date()
-        });
-        console.log('✅ Firebase Connected! Doc ID:', docRef.id);
-      } catch (error) {
-        console.error('❌ Firebase Error:', error);
-      }
-    };
-
-    testFirebase();
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning! 👋';
+    if (hour < 18) return 'Good Afternoon! ☀️';
+    return 'Good Evening! 🌙';
   }, []);
-  const quickActions = [
-    { id: '1', emoji: '🚗', label: 'Register\nVehicle', color: '#1a237e' },
-    { id: '2', emoji: '📢', label: 'Send\nAlert', color: '#bf360c' },
-    { id: '3', emoji: '📊', label: 'My\nStats', color: '#1b5e20' },
-    { id: '4', emoji: '🆘', label: 'Emergency', color: '#b71c1c' },
-  ];
-
-  const activities = [
-    {
-      id: '1',
-      title: 'Wrong Parking Alert',
-      desc: 'MH 12 AB 3456 • 2 hours ago',
-      statusColor: '#FF9500',
-      icon: 'parking',
-    },
-    {
-      id: '2',
-      title: 'Headlights Left On',
-      desc: 'DL 8C 7890 • Yesterday',
-      statusColor: '#FFCC00',
-      icon: 'lightbulb-outline',
-    },
-    {
-      id: '3',
-      title: 'Issue Resolved',
-      desc: 'KA 05 MN 2345 • 2 days ago',
-      statusColor: '#34C759',
-      icon: 'check-circle-outline',
-    },
-  ];
 
   const handleActionPress = (id: string) => {
     switch (id) {
       case '1':
-        Alert.alert("Coming Soon!");
+        Alert.alert("Coming Soon!", "Vehicle registration will be available in the next update.");
         break;
       case '2':
         router.push('/send-alert');
@@ -80,7 +70,14 @@ export default function HomeScreen() {
         router.push('/profile');
         break;
       case '4':
-        Alert.alert("Calling 112...");
+        Alert.alert(
+          "Emergency",
+          "Are you sure you want to call emergency services?",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Call 112", onPress: () => Linking.openURL('tel:112') }
+          ]
+        );
         break;
       default:
         break;
@@ -110,14 +107,17 @@ export default function HomeScreen() {
                     <Text style={styles.tagline}>Connect. Alert. Resolve.</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.bellButton}>
+                <TouchableOpacity 
+                  style={styles.bellButton}
+                  onPress={() => router.push('/alerts')}
+                >
                   <Ionicons name="notifications-outline" size={24} color="white" />
                   <View style={styles.bellBadge} />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.greetingContainer}>
-                <Text style={styles.greetingTitle}>Good Morning! 👋</Text>
+                <Text style={styles.greetingTitle}>{greeting}</Text>
                 <Text style={styles.greetingSubtitle}>What would you like to do today?</Text>
               </View>
             </View>
@@ -126,18 +126,14 @@ export default function HomeScreen() {
 
         <View style={styles.mainContent}>
           <View style={styles.quickActionsContainer}>
-            {quickActions.map((action) => (
+            {QUICK_ACTIONS.map((action) => (
               <TouchableOpacity 
                 key={action.id} 
                 style={[styles.actionCard, { backgroundColor: action.color }]}
                 onPress={() => handleActionPress(action.id)}
               >
                 <View style={styles.actionIconCircle}>
-                  {action.emoji ? (
-                    <Text style={styles.actionEmoji}>{action.emoji}</Text>
-                  ) : (
-                    <MaterialCommunityIcons name={action.icon as any} size={28} color="white" />
-                  )}
+                  <Text style={styles.actionEmoji}>{action.emoji}</Text>
                 </View>
                 <Text style={styles.actionLabel}>{action.label}</Text>
               </TouchableOpacity>
@@ -146,13 +142,13 @@ export default function HomeScreen() {
 
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Activity</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/alerts')}>
               <Text style={styles.seeAll}>See All →</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.activitiesList}>
-            {activities.map((activity) => (
+            {ACTIVITIES.map((activity) => (
               <TouchableOpacity 
                 key={activity.id} 
                 style={styles.activityCard}
@@ -160,7 +156,7 @@ export default function HomeScreen() {
               >
                 <View style={styles.activityLeft}>
                   <View style={styles.activityIconWrapper}>
-                    <MaterialCommunityIcons name={activity.icon as any} size={24} color="white" />
+                    <MaterialCommunityIcons name={activity.icon} size={24} color="white" />
                   </View>
                   <View style={styles.activityInfo}>
                     <Text style={styles.activityTitle}>{activity.title}</Text>

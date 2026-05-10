@@ -15,8 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-
-import { auth, getConfirmationResult } from '../src/config/firebase';
+import { getConfirmationResult } from '../src/config/firebase';
 
 export default function OTPScreen() {
   const router = useRouter();
@@ -27,18 +26,66 @@ export default function OTPScreen() {
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const [timer, setTimer] = useState(42);
 
-  // ... (rest of animations and effects)
+  // Dot animations
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animateDot = (dot: Animated.Value, delay: number) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: -6, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0, duration: 300, useNativeDriver: true }),
+        ])
+      ).start();
+    };
+    animateDot(dot1, 0);
+    animateDot(dot2, 150);
+    animateDot(dot3, 300);
+  }, []);
+
+  // Timer countdown
+  useEffect(() => {
+    if (timer <= 0) return;
+    const interval = setInterval(() => {
+      setTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timer]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const handleOtpChange = (value: string, index: number) => {
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
 
   const handleVerifyOTP = async () => {
     const code = otp.join('');
-    
+
     if (code.length < 6) {
       Alert.alert('Invalid OTP', 'Please enter a 6-digit verification code.');
       return;
     }
 
     setLoading(true);
-    
+
     try {
       const confirmation = getConfirmationResult();
       if (!confirmation) {
@@ -46,7 +93,7 @@ export default function OTPScreen() {
       }
 
       await confirmation.confirm(code);
-      
+
       setLoading(false);
       console.log('✅ OTP Verification Success');
       router.push('/welcome');
@@ -63,8 +110,8 @@ export default function OTPScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color="white" />
@@ -98,7 +145,7 @@ export default function OTPScreen() {
           {otp.map((digit, index) => (
             <TextInput
               key={index}
-              ref={(ref) => (inputRefs.current[index] = ref)}
+             ref={(ref) => { inputRefs.current[index] = ref; }}
               style={[
                 styles.otpInput,
                 digit ? styles.otpInputActive : null
@@ -116,8 +163,8 @@ export default function OTPScreen() {
 
         <Text style={styles.timer}>⏱ OTP expires in {formatTime(timer)}</Text>
 
-        <TouchableOpacity 
-          activeOpacity={0.8} 
+        <TouchableOpacity
+          activeOpacity={0.8}
           style={styles.buttonWrapper}
           onPress={handleVerifyOTP}
           disabled={loading}
@@ -136,7 +183,7 @@ export default function OTPScreen() {
 
         <View style={styles.resendContainer}>
           <Text style={styles.resendText}>Didn&apos;t receive the OTP?</Text>
-          <TouchableOpacity style={styles.resendButton}>
+          <TouchableOpacity style={styles.resendButton} onPress={() => setTimer(42)}>
             <Text style={styles.resendButtonText}>🔄 Resend OTP</Text>
           </TouchableOpacity>
         </View>

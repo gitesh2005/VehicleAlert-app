@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,21 +14,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { auth, firebaseConfig, setConfirmationResult } from '../src/config/firebase';
-import { PhoneAuthProvider, signInWithPhoneNumber } from 'firebase/auth';
+import { auth, setConfirmationResult } from '../src/config/firebase';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
 
   const handlePhoneChange = (text: string) => {
-    // Only allow numbers
     const cleaned = text.replace(/[^0-9]/g, '');
-    // Limit to 10 digits
     if (cleaned.length <= 10) {
       setPhoneNumber(cleaned);
       if (cleaned.length === 10) {
@@ -42,22 +37,15 @@ export default function LoginScreen() {
       setError('Please enter a valid 10-digit mobile number');
       return;
     }
-    
+
     setLoading(true);
     const fullPhoneNumber = `+91${phoneNumber}`;
 
     try {
-      if (!recaptchaVerifier.current) return;
-      
-      const confirmation = await signInWithPhoneNumber(
-        auth,
-        fullPhoneNumber,
-        recaptchaVerifier.current as any
-      );
-      
+      const confirmation = await auth().signInWithPhoneNumber(fullPhoneNumber);
       setConfirmationResult(confirmation);
       setLoading(false);
-      
+
       router.push({
         pathname: '/otp',
         params: { phone: fullPhoneNumber }
@@ -65,7 +53,20 @@ export default function LoginScreen() {
     } catch (err: any) {
       setLoading(false);
       console.error('Firebase Auth Error:', err);
-      Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
+
+      if (err.code === 'auth/billing-not-enabled' || err.message?.includes('BILLING_NOT_ENABLED')) {
+        Alert.alert(
+          '🔒 Testing Mode Active',
+          'Real OTP is not available yet.\n\nPlease use the test number added in Firebase Console to login.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      } else if (err.code === 'auth/invalid-phone-number') {
+        setError('Invalid phone number. Please check and try again.');
+      } else if (err.code === 'auth/too-many-requests') {
+        Alert.alert('Too Many Requests', 'Please wait a few minutes before trying again.');
+      } else {
+        Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
+      }
     }
   };
 
@@ -73,11 +74,6 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={true}
-      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
@@ -109,11 +105,11 @@ export default function LoginScreen() {
               maxLength={10}
             />
           </View>
-          
+
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <TouchableOpacity 
-            activeOpacity={0.8} 
+          <TouchableOpacity
+            activeOpacity={0.8}
             style={styles.buttonWrapper}
             onPress={handleSendOTP}
             disabled={isButtonDisabled}
