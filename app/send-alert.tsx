@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,18 +9,21 @@ import {
   TextInput,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { sendAlert } from '../src/services/alertService';
 
 export default function SendAlertScreen() {
   const router = useRouter();
   const { vehicleNumber } = useLocalSearchParams<{ vehicleNumber: string }>();
   const [selectedAlert, setSelectedAlert] = useState('Wrong Parking');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const displayVehicleNumber = vehicleNumber || 'Unknown Vehicle';
-  const isSendDisabled = !vehicleNumber;
+  const isSendDisabled = !vehicleNumber || loading;
 
   const alertTypes = [
     {
@@ -54,22 +57,37 @@ export default function SendAlertScreen() {
     },
   ];
 
-  const handleSendAlert = () => {
+  const handleSendAlert = async () => {
     if (isSendDisabled) return;
 
-    const payload = {
-      vehicleNumber: displayVehicleNumber,
-      alertType: selectedAlert,
-      message: message,
-    };
+    setLoading(true);
+    try {
+      await sendAlert(
+        'anonymous', // Setting as anonymous as requested
+        displayVehicleNumber,
+        selectedAlert,
+        message
+      );
+      
+      setLoading(false);
+      Alert.alert(
+        "Success",
+        "✅ Alert sent successfully! The owner will be notified.",
+        [{ text: "OK" }]
+      );
 
-    console.log('Sending Alert Payload:', payload);
-    
-    Alert.alert(
-      "Alert Sent!",
-      `Your alert for ${displayVehicleNumber} has been sent successfully.`,
-      [{ text: "OK", onPress: () => router.replace('/home') }]
-    );
+      setTimeout(() => {
+        router.push('/home');
+      }, 1000);
+
+    } catch (error) {
+      setLoading(false);
+      console.error('Error sending alert:', error);
+      Alert.alert(
+        "Error",
+        "❌ Failed to send alert. Please try again."
+      );
+    }
   };
 
   return (
@@ -92,12 +110,6 @@ export default function SendAlertScreen() {
                 >
                   <Text style={styles.backText}>← Back</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  onPress={() => router.push('/report-false-alert')}
-                  style={styles.menuButton}
-                >
-                  <Text style={styles.menuDots}>•••</Text>
-                </TouchableOpacity>
               </View>
               <Text style={styles.headerTitle}>Send Alert</Text>
             </View>
@@ -106,11 +118,7 @@ export default function SendAlertScreen() {
 
         <View style={styles.mainContent}>
           {/* Vehicle Info Card */}
-          <TouchableOpacity 
-            activeOpacity={0.9}
-            onLongPress={() => router.push('/report-false-alert')}
-            style={styles.vehicleCard}
-          >
+          <View style={styles.vehicleCard}>
             <View style={styles.vehicleInfoLeft}>
               <Text style={styles.carEmoji}>🚗</Text>
               <Text style={styles.vehicleNumberText}>{displayVehicleNumber}</Text>
@@ -119,7 +127,7 @@ export default function SendAlertScreen() {
               <Text style={styles.lockEmoji}>🔒</Text>
               <Text style={styles.anonymousText}>Anonymous</Text>
             </View>
-          </TouchableOpacity>
+          </View>
 
           {/* Alert Type Section */}
           <Text style={styles.sectionTitle}>Select Alert Type</Text>
@@ -176,12 +184,16 @@ export default function SendAlertScreen() {
             disabled={isSendDisabled}
           >
             <LinearGradient
-              colors={isSendDisabled ? ['#30363d', '#30363d'] : ['#e8570a', '#f0720a']}
+              colors={isSendDisabled && !loading ? ['#30363d', '#30363d'] : ['#e8570a', '#f0720a']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.sendButton}
             >
-              <Text style={styles.sendButtonText}>📋 Send Alert Now</Text>
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.sendButtonText}>📋 Send Alert Now</Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
 
@@ -220,15 +232,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  menuButton: {
-    padding: 4,
-  },
-  menuDots: {
-    color: '#8b949e',
-    fontSize: 18,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
   headerTitle: {
     color: '#ffffff',
     fontSize: 32,
@@ -237,7 +240,6 @@ const styles = StyleSheet.create({
   mainContent: {
     paddingHorizontal: 16,
     marginTop: -20,
-    gap: 16,
     paddingBottom: 40,
   },
   vehicleCard: {
@@ -249,14 +251,15 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#30363d',
+    marginBottom: 16,
   },
   vehicleInfoLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   carEmoji: {
     fontSize: 18,
+    marginRight: 8,
   },
   vehicleNumberText: {
     color: '#ffffff',
@@ -266,10 +269,10 @@ const styles = StyleSheet.create({
   vehicleInfoRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
   lockEmoji: {
     fontSize: 14,
+    marginRight: 4,
   },
   anonymousText: {
     color: '#3fb950',
@@ -281,11 +284,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginTop: 8,
+    marginBottom: 12,
   },
   alertGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   alertCard: {
     width: '48%',
@@ -295,6 +300,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#30363d',
     minHeight: 100,
+    marginBottom: 12,
   },
   selectedAlertCard: {
     borderColor: '#e8570a',
@@ -303,7 +309,6 @@ const styles = StyleSheet.create({
   alertCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     marginBottom: 8,
   },
   iconSquare: {
@@ -312,14 +317,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#161b22',
-  },
-  pIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginRight: 8,
   },
   pIconText: {
     color: '#ffffff',
@@ -348,6 +346,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#30363d',
     fontSize: 15,
+    marginBottom: 16,
   },
   anonymousBanner: {
     flexDirection: 'row',
@@ -357,10 +356,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#238636',
     alignItems: 'center',
-    gap: 10,
+    marginBottom: 16,
   },
   bannerEmoji: {
     fontSize: 16,
+    marginRight: 10,
   },
   bannerText: {
     color: '#3fb950',

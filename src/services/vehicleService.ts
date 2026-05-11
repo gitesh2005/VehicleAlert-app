@@ -28,17 +28,22 @@ export const registerVehicle = async (
 };
 
 export const searchVehicle = async (vehicleNumber: string) => {
+  const normalizedNumber = vehicleNumber.toUpperCase().trim();
+  console.log("Searching for vehicle:", normalizedNumber);
   try {
     const querySnapshot = await db.collection(VEHICLES_COLLECTION)
-      .where("vehicleNumber", "==", vehicleNumber.toUpperCase().trim())
+      .where("vehicleNumber", "==", normalizedNumber)
       .get();
     
     if (querySnapshot.empty) {
+      console.log("No vehicle found for:", normalizedNumber);
       return null;
     }
 
     const doc = querySnapshot.docs[0];
-    return { id: doc.id, ...doc.data() };
+    const data = { id: doc.id, ...doc.data() };
+    console.log("Vehicle found:", data);
+    return data;
   } catch (error) {
     console.error("Error searching vehicle:", error);
     throw error;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,18 +7,53 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { db, auth } from '../src/config/firebase';
+
+const VEHICLE_EMOJIS: Record<string, string> = {
+  'Car': '🚗',
+  'Bike': '🏍️',
+  'Bus': '🚌',
+  'Truck': '🚛',
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const registeredVehicles = [
-    { id: '1', emoji: '🚗', plate: 'MH 12 AB 3456', status: 'Active' },
-    { id: '2', emoji: '🚙', plate: 'DL 08 CD 7890', status: 'Active' },
-  ];
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
+  const fetchVehicles = async () => {
+    const userId = auth().currentUser?.uid;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const querySnapshot = await db.collection('vehicles')
+        .where('userId', '==', userId)
+        .get();
+      
+      const vehicleList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setVehicles(vehicleList);
+    } catch (error) {
+      console.error("Error fetching vehicles:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const stats = [
     { id: '1', count: '12', label: 'Alerts Sent' },
@@ -49,28 +84,61 @@ export default function ProfileScreen() {
                 colors={['#4a90e2', '#357abd']}
                 style={styles.avatar}
               >
-                <Text style={styles.avatarText}>GS</Text>
+                <Text style={styles.avatarText}>
+                  {auth().currentUser?.phoneNumber?.slice(-2) || 'GS'}
+                </Text>
               </LinearGradient>
-              <Text style={styles.phoneNumber}>+91 8307552640</Text>
+              <Text style={styles.phoneNumber}>
+                {auth().currentUser?.phoneNumber || '+91 8307552640'}
+              </Text>
             </View>
 
-            {/* Registered Vehicles */}
+            {/* Registered Vehicles Section */}
             <View style={styles.section}>
               <Text style={styles.sectionHeading}>My Registered Vehicles</Text>
-              {registeredVehicles.map((vehicle) => (
-                <View key={vehicle.id} style={styles.vehicleCard}>
-                  <View style={styles.vehicleLeft}>
-                    <Text style={styles.vehicleEmoji}>{vehicle.emoji}</Text>
-                    <Text style={styles.vehiclePlate}>
-                      {vehicle.plate} • {vehicle.status}
-                    </Text>
-                  </View>
-                  <View style={styles.activeDot} />
+              
+              {loading ? (
+                <View style={styles.loaderContainer}>
+                  <ActivityIndicator color="#007AFF" size="large" />
                 </View>
-              ))}
-              <TouchableOpacity style={styles.addVehicleButton}>
-                <Text style={styles.addVehicleText}>+ Add New Vehicle</Text>
-              </TouchableOpacity>
+              ) : (
+                <>
+                  {vehicles.length > 0 ? (
+                    vehicles.map((vehicle) => (
+                      <View key={vehicle.id} style={styles.vehicleCard}>
+                        <View style={styles.vehicleLeft}>
+                          <Text style={styles.vehicleEmoji}>
+                            {VEHICLE_EMOJIS[vehicle.vehicleType] || '🚗'}
+                          </Text>
+                          <Text style={styles.vehiclePlate}>
+                            {vehicle.vehicleNumber} • {vehicle.isActive ? 'Active' : 'Inactive'}
+                          </Text>
+                        </View>
+                        {vehicle.isActive && <View style={styles.activeDot} />}
+                      </View>
+                    ))
+                  ) : (
+                    <View style={styles.emptyContainer}>
+                      <Text style={styles.emptyText}>No vehicles registered yet</Text>
+                      <TouchableOpacity 
+                        style={styles.addVehicleButton}
+                        onPress={() => router.push('/register-vehicle')}
+                      >
+                        <Text style={styles.addVehicleText}>Register Now</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  
+                  {vehicles.length > 0 && (
+                    <TouchableOpacity 
+                      style={styles.addVehicleButton}
+                      onPress={() => router.push('/register-vehicle')}
+                    >
+                      <Text style={styles.addVehicleText}>+ Add New Vehicle</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
             </View>
 
             {/* Stats Section */}
@@ -104,10 +172,10 @@ export default function ProfileScreen() {
             </View>
 
             {/* Logout Row */}
-            <TouchableOpacity style={styles.logoutRow}>
+            <TouchableOpacity style={styles.logoutRow} onPress={() => auth().signOut()}>
               <View style={styles.menuLeft}>
                 <View style={styles.logoutIconWrapper}>
-                   <Ionicons name="bookmark" size={18} color="#f85149" />
+                   <Ionicons name="log-out-outline" size={18} color="#f85149" />
                 </View>
                 <Text style={styles.logoutText}>Logout</Text>
               </View>
@@ -185,6 +253,23 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+    marginBottom: 12,
+  },
+  loaderContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#161b22',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#30363d',
+  },
+  emptyText: {
+    color: '#8b949e',
+    fontSize: 14,
     marginBottom: 12,
   },
   vehicleCard: {

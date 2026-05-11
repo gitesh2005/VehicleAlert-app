@@ -8,19 +8,40 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { searchVehicle } from '../src/services/vehicleService';
 
 export default function SearchScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showResult, setShowResult] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [vehicleData, setVehicleData] = useState<any>(null);
+  const [searchAttempted, setSearchAttempted] = useState(false);
 
-  const handleSearch = () => {
-    if (searchQuery.length > 0) {
-      setShowResult(true);
+  const handleSearch = async () => {
+    if (searchQuery.length === 0) {
+      Alert.alert('Error', 'Please enter a vehicle number');
+      return;
+    }
+
+    setLoading(true);
+    setSearchAttempted(false);
+    setVehicleData(null);
+
+    try {
+      const data = await searchVehicle(searchQuery);
+      setVehicleData(data);
+      setSearchAttempted(true);
+    } catch (error) {
+      console.error("Search error:", error);
+      Alert.alert('Error', 'Failed to search vehicle. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -46,7 +67,8 @@ export default function SearchScreen() {
                 value={searchQuery}
                 onChangeText={(text) => {
                     setSearchQuery(text.toUpperCase());
-                    setShowResult(false);
+                    setSearchAttempted(false);
+                    setVehicleData(null);
                 }}
                 autoCapitalize="characters"
               />
@@ -68,6 +90,7 @@ export default function SearchScreen() {
               activeOpacity={0.8} 
               style={styles.searchButtonWrapper}
               onPress={handleSearch}
+              disabled={loading}
             >
               <LinearGradient
                 colors={['#007AFF', '#0055FF']}
@@ -75,50 +98,67 @@ export default function SearchScreen() {
                 end={{ x: 1, y: 0 }}
                 style={styles.gradientButton}
               >
-                <Text style={styles.buttonText}>Search Vehicle 🔍</Text>
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={styles.buttonText}>Search Vehicle 🔍</Text>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           </View>
 
-          {showResult && (
+          {searchAttempted && (
             <View style={styles.resultContainer}>
-              <View style={styles.resultCard}>
-                <Text style={styles.resultHeading}>✅ Vehicle Found!</Text>
-                
-                <View style={styles.resultRow}>
-                  <Text style={styles.rowLabel}>Vehicle No.</Text>
-                  <Text style={styles.rowValue}>{searchQuery}</Text>
-                </View>
-                <View style={styles.resultDivider} />
-                
-                <View style={styles.resultRow}>
-                  <Text style={styles.rowLabel}>Owner Status</Text>
-                  <Text style={[styles.rowValue, { color: '#34C759' }]}>Registered ✓</Text>
-                </View>
-                <View style={styles.resultDivider} />
-                
-                <View style={styles.resultRow}>
-                  <Text style={styles.rowLabel}>Vehicle Type</Text>
-                  <Text style={styles.rowValue}>Car - Sedan</Text>
-                </View>
-                <View style={styles.resultDivider} />
-                
-                <View style={styles.resultRow}>
-                  <Text style={styles.rowLabel}>Last Alert</Text>
-                  <Text style={styles.rowValue}>None sent yet</Text>
-                </View>
-              </View>
+              {vehicleData ? (
+                /* Found State */
+                <>
+                  <View style={styles.resultCard}>
+                    <Text style={styles.resultHeading}>✅ Vehicle Found!</Text>
+                    
+                    <View style={styles.resultRow}>
+                      <Text style={styles.rowLabel}>Vehicle No.</Text>
+                      <Text style={styles.rowValue}>{vehicleData.vehicleNumber}</Text>
+                    </View>
+                    <View style={styles.resultDivider} />
+                    
+                    <View style={styles.resultRow}>
+                      <Text style={styles.rowLabel}>Vehicle Type</Text>
+                      <Text style={styles.rowValue}>{vehicleData.vehicleType || 'Not specified'}</Text>
+                    </View>
+                    <View style={styles.resultDivider} />
+                    
+                    <View style={styles.resultRow}>
+                      <Text style={styles.rowLabel}>Vehicle Model</Text>
+                      <Text style={styles.rowValue}>{vehicleData.vehicleModel || 'Not specified'}</Text>
+                    </View>
+                    <View style={styles.resultDivider} />
 
-              <TouchableOpacity 
-                activeOpacity={0.8} 
-                style={styles.sendAlertButton}
-                onPress={() => router.push({
-                  pathname: '/send-alert',
-                  params: { vehicleNumber: searchQuery }
-                })}
-              >
-                <Text style={styles.sendAlertText}>📢 Send Alert to Owner</Text>
-              </TouchableOpacity>
+                    <View style={styles.resultRow}>
+                      <Text style={styles.rowLabel}>Vehicle Color</Text>
+                      <Text style={styles.rowValue}>{vehicleData.vehicleColor || 'Not specified'}</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity 
+                    activeOpacity={0.8} 
+                    style={styles.sendAlertButton}
+                    onPress={() => router.push({
+                      pathname: '/send-alert',
+                      params: { vehicleNumber: vehicleData.vehicleNumber }
+                    })}
+                  >
+                    <Text style={styles.sendAlertText}>📢 Send Alert to Owner</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                /* Not Found State */
+                <View style={styles.notFoundContainer}>
+                  <View style={styles.notFoundCard}>
+                    <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" style={{ alignSelf: 'center', marginBottom: 12 }} />
+                    <Text style={styles.notFoundHeading}>❌ Vehicle not registered on VehicleAlert</Text>
+                  </View>
+                </View>
+              )}
             </View>
           )}
         </ScrollView>
@@ -297,6 +337,30 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  notFoundContainer: {
+    width: '100%',
+  },
+  notFoundCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 59, 48, 0.2)',
+    marginBottom: 20,
+  },
+  notFoundHeading: {
+    color: '#FF3B30',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  notFoundSubtext: {
+    color: '#8E8E93',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   bottomNav: {
     position: 'absolute',

@@ -3,15 +3,21 @@ import { db } from "../config/firebase";
 
 const ALERTS_COLLECTION = "alerts";
 
-export const sendAlert = async (fromUserId: string, vehicleNumber: string, alertType: string, message: string) => {
+export const sendAlert = async (
+  fromUserId: string, 
+  toVehicleNumber: string, 
+  alertType: string, 
+  message: string
+) => {
   try {
     const docRef = await db.collection(ALERTS_COLLECTION).add({
-      fromUserId,
-      vehicleNumber: vehicleNumber.toUpperCase().trim(),
+      fromUserId: fromUserId || 'anonymous',
+      toVehicleNumber: toVehicleNumber.toUpperCase().trim(),
       alertType,
       message: message || "",
       sentAt: firestore.FieldValue.serverTimestamp(),
       isRead: false,
+      status: 'sent'
     });
     return docRef.id;
   } catch (error) {
@@ -25,7 +31,7 @@ export const getMyAlerts = async (vehicleNumbers: string[]) => {
     if (!vehicleNumbers || vehicleNumbers.length === 0) return [];
 
     const querySnapshot = await db.collection(ALERTS_COLLECTION)
-      .where("vehicleNumber", "in", vehicleNumbers)
+      .where("toVehicleNumber", "in", vehicleNumbers)
       .orderBy("sentAt", "desc")
       .get();
     

@@ -27,47 +27,81 @@ const VEHICLE_TYPES = [
 export default function RegisterVehicleScreen() {
   const router = useRouter();
   const [vehicleNumber, setVehicleNumber] = useState('');
-  const [vehicleType, setVehicleType] = useState('Car');
+  const [vehicleType, setVehicleType] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
   const [vehicleColor, setVehicleColor] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = async () => {
+  // Error states
+  const [errors, setErrors] = useState({
+    vehicleNumber: '',
+    vehicleType: '',
+    vehicleModel: '',
+    vehicleColor: '',
+  });
+
+  const validate = () => {
+    let isValid = true;
+    const newErrors = {
+      vehicleNumber: '',
+      vehicleType: '',
+      vehicleModel: '',
+      vehicleColor: '',
+    };
+
     if (!vehicleNumber.trim()) {
-      Alert.alert('Error', 'Please enter vehicle number');
-      return;
-    }
-    if (!vehicleModel.trim()) {
-      Alert.alert('Error', 'Please enter vehicle model');
-      return;
-    }
-    if (!vehicleColor.trim()) {
-      Alert.alert('Error', 'Please enter vehicle color');
-      return;
+      newErrors.vehicleNumber = 'Vehicle number is required';
+      isValid = false;
+    } else if (vehicleNumber.trim().length < 6) {
+      newErrors.vehicleNumber = 'Minimum 6 characters required';
+      isValid = false;
     }
 
-    const userId = auth().currentUser?.uid;
-    if (!userId) {
-      Alert.alert('Error', 'User not authenticated');
-      return;
+    if (!vehicleType) {
+      newErrors.vehicleType = 'Please select a vehicle type';
+      isValid = false;
     }
+
+    if (!vehicleModel.trim()) {
+      newErrors.vehicleModel = 'Vehicle model is required';
+      isValid = false;
+    }
+
+    if (!vehicleColor.trim()) {
+      newErrors.vehicleColor = 'Vehicle color is required';
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  const handleRegister = async () => {
+    if (!validate()) return;
 
     setLoading(true);
+    const userId = auth().currentUser?.uid || 'test-user';
+
     try {
       await registerVehicle(
         userId,
-        vehicleNumber,
+        vehicleNumber.toUpperCase(),
         vehicleType,
         vehicleModel,
         vehicleColor
       );
+      
       setLoading(false);
-      Alert.alert('Success', 'Vehicle Registered Successfully! ✅', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      Alert.alert('Success', '✅ Vehicle Registered Successfully!');
+      
+      setTimeout(() => {
+        router.push('/home');
+      }, 1000);
+
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('Error', error.message || 'Failed to register vehicle');
+      console.error('Registration error:', error);
+      Alert.alert('Error', '❌ Failed to register. Please try again.');
     }
   };
 
@@ -98,18 +132,24 @@ export default function RegisterVehicleScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.form}>
+          {/* Vehicle Number */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Vehicle Number</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.vehicleNumber ? styles.inputError : null]}
               placeholder="MH 12 AB 3456"
               placeholderTextColor="#666"
               value={vehicleNumber}
-              onChangeText={(text) => setVehicleNumber(text.toUpperCase())}
+              onChangeText={(text) => {
+                setVehicleNumber(text.toUpperCase());
+                if (errors.vehicleNumber) setErrors({ ...errors, vehicleNumber: '' });
+              }}
               autoCapitalize="characters"
             />
+            {errors.vehicleNumber ? <Text style={styles.errorText}>{errors.vehicleNumber}</Text> : null}
           </View>
 
+          {/* Vehicle Type */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Vehicle Type</Text>
             <View style={styles.typeSelector}>
@@ -118,9 +158,13 @@ export default function RegisterVehicleScreen() {
                   key={type.id}
                   style={[
                     styles.typeItem,
-                    vehicleType === type.id ? styles.typeItemActive : null
+                    vehicleType === type.id ? styles.typeItemActive : null,
+                    errors.vehicleType ? styles.inputError : null
                   ]}
-                  onPress={() => setVehicleType(type.id)}
+                  onPress={() => {
+                    setVehicleType(type.id);
+                    if (errors.vehicleType) setErrors({ ...errors, vehicleType: '' });
+                  }}
                 >
                   <Text style={styles.typeEmoji}>{type.emoji}</Text>
                   <Text style={[
@@ -132,30 +176,42 @@ export default function RegisterVehicleScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            {errors.vehicleType ? <Text style={styles.errorText}>{errors.vehicleType}</Text> : null}
           </View>
 
+          {/* Vehicle Model */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Vehicle Model</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.vehicleModel ? styles.inputError : null]}
               placeholder="e.g. Honda City"
               placeholderTextColor="#666"
               value={vehicleModel}
-              onChangeText={setVehicleModel}
+              onChangeText={(text) => {
+                setVehicleModel(text);
+                if (errors.vehicleModel) setErrors({ ...errors, vehicleModel: '' });
+              }}
             />
+            {errors.vehicleModel ? <Text style={styles.errorText}>{errors.vehicleModel}</Text> : null}
           </View>
 
+          {/* Vehicle Color */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Vehicle Color</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.vehicleColor ? styles.inputError : null]}
               placeholder="e.g. White"
               placeholderTextColor="#666"
               value={vehicleColor}
-              onChangeText={setVehicleColor}
+              onChangeText={(text) => {
+                setVehicleColor(text);
+                if (errors.vehicleColor) setErrors({ ...errors, vehicleColor: '' });
+              }}
             />
+            {errors.vehicleColor ? <Text style={styles.errorText}>{errors.vehicleColor}</Text> : null}
           </View>
 
+          {/* Plate Preview */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Plate Preview</Text>
             <View style={styles.plateContainer}>
@@ -171,6 +227,7 @@ export default function RegisterVehicleScreen() {
             </View>
           </View>
 
+          {/* Submit Button */}
           <TouchableOpacity 
             style={styles.registerButtonContainer}
             onPress={handleRegister}
@@ -253,6 +310,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#2C2C2E',
+  },
+  inputError: {
+    borderColor: '#FF3B30',
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   typeSelector: {
     flexDirection: 'row',
