@@ -25,40 +25,71 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Real-time stats states
+  const [sentCount, setSentCount] = useState(0);
+  const [receivedCount, setReceivedCount] = useState(0);
+  const [resolvedCount, setResolvedCount] = useState(0);
 
   useEffect(() => {
-    fetchVehicles();
-  }, []);
-
-  const fetchVehicles = async () => {
     const userId = auth().currentUser?.uid;
     if (!userId) {
       setLoading(false);
       return;
     }
 
-    try {
-      const querySnapshot = await db.collection('vehicles')
-        .where('userId', '==', userId)
-        .get();
-      
-      const vehicleList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setVehicles(vehicleList);
-    } catch (error) {
-      console.error("Error fetching vehicles:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    // 1. Listen for user's vehicles
+    const unsubscribeVehicles = db.collection('vehicles')
+      .where('userId', '==', userId)
+      .onSnapshot(snapshot => {
+        const vehicleList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setVehicles(vehicleList);
+        setLoading(false);
+
+        const vehicleNumbers = vehicleList.map(v => v.vehicleNumber);
+        
+        // 2. Listen for received/resolved alerts (only if user has vehicles)
+        if (vehicleNumbers.length > 0) {
+          const unsubscribeReceived = db.collection('alerts')
+            .where('toVehicleNumber', 'in', vehicleNumbers)
+            .onSnapshot(alertSnapshot => {
+              const alerts = alertSnapshot.docs.map(doc => doc.data());
+              setReceivedCount(alerts.length);
+              setResolvedCount(alerts.filter(a => a.status === 'resolved').length);
+            });
+          
+          return () => unsubscribeReceived();
+        } else {
+          setReceivedCount(0);
+          setResolvedCount(0);
+        }
+      }, error => {
+        console.error("Vehicles listener error:", error);
+        setLoading(false);
+      });
+
+    // 3. Listen for sent alerts
+    const unsubscribeSent = db.collection('alerts')
+      .where('fromUserId', '==', userId)
+      .onSnapshot(snapshot => {
+        setSentCount(snapshot.size);
+      }, error => {
+        console.error("Sent alerts listener error:", error);
+      });
+
+    return () => {
+      unsubscribeVehicles();
+      unsubscribeSent();
+    };
+  }, []);
 
   const stats = [
-    { id: '1', count: '12', label: 'Alerts Sent' },
-    { id: '2', count: '3', label: 'Received' },
-    { id: '3', count: '8', label: 'Resolved' },
+    { id: '1', count: sentCount.toString(), label: 'Alerts Sent' },
+    { id: '2', count: receivedCount.toString(), label: 'Received' },
+    { id: '3', count: resolvedCount.toString(), label: 'Resolved' },
   ];
 
   const menuItems = [

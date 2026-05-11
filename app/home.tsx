@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,10 +10,12 @@ import {
   Dimensions,
   Alert,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { db, auth } from '../src/config/firebase';
 
 const { width } = Dimensions.get('window');
 
@@ -24,32 +26,79 @@ const QUICK_ACTIONS = [
   { id: '4', emoji: '🆘', label: 'Emergency', color: '#b71c1c' },
 ] as const;
 
-const ACTIVITIES = [
-  {
-    id: '1',
-    title: 'Wrong Parking Alert',
-    desc: 'MH 12 AB 3456 • 2 hours ago',
-    statusColor: '#FF9500',
-    icon: 'parking' as const,
-  },
-  {
-    id: '2',
-    title: 'Headlights Left On',
-    desc: 'DL 8C 7890 • Yesterday',
-    statusColor: '#FFCC00',
-    icon: 'lightbulb-outline' as const,
-  },
-  {
-    id: '3',
-    title: 'Issue Resolved',
-    desc: 'KA 05 MN 2345 • 2 days ago',
-    statusColor: '#34C759',
-    icon: 'check-circle-outline' as const,
-  },
-];
+const ALERT_TYPE_CONFIG: Record<string, { icon: any, color: string }> = {
+  'Wrong Parking': { icon: 'parking', color: '#FF9500' },
+  'Lights Left On': { icon: 'lightbulb-outline', color: '#FFCC00' },
+  'Reckless Driving': { icon: 'alert-decagram-outline', color: '#FF4444' },
+  'Vehicle Issue': { icon: 'wrench-outline', color: '#007AFF' },
+};
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchRecentActivity();
+  }, []);
+
+  const fetchRecentActivity = async () => {
+    const userId = auth().currentUser?.uid;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 1. Get user's vehicles
+      const vehiclesSnapshot = await db.collection('vehicles')
+        .where('userId', '==', userId)
+        .get();
+      
+      const myVehicleNumbers = vehiclesSnapshot.docs.map(doc => doc.data().vehicleNumber);
+
+      if (myVehicleNumbers.length === 0) {
+        setActivities([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Get last 3 alerts (Sort client-side to avoid index error)
+      const alertsSnapshot = await db.collection('alerts')
+        .where('toVehicleNumber', 'in', myVehicleNumbers)
+        .get();
+      
+      const allAlerts = alertsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      const sortedAlerts = allAlerts.sort((a, b) => {
+        const timeA = a.sentAt?.toDate ? a.sentAt.toDate().getTime() : 0;
+        const timeB = b.sentAt?.toDate ? b.sentAt.toDate().getTime() : 0;
+        return timeB - timeA;
+      }).slice(0, 3);
+
+      setActivities(sortedAlerts);
+    } catch (error) {
+      console.error("Error fetching recent activity:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const timeAgo = (timestamp: any) => {
+    if (!timestamp) return 'Just now';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+
+    let interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " hours ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " minutes ago";
+    if (seconds > 86400) return "Yesterday";
+    return "Just now";
+  };
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -64,7 +113,7 @@ export default function HomeScreen() {
         router.push('/register-vehicle');
         break;
       case '2':
-        router.push('/send-alert');
+        router.push('/search');
         break;
       case '3':
         router.push('/profile');
@@ -112,7 +161,7 @@ export default function HomeScreen() {
                   onPress={() => router.push('/alerts')}
                 >
                   <Ionicons name="notifications-outline" size={24} color="white" />
-                  <View style={styles.bellBadge} />
+                  {activities.some(a => !a.isRead) && <View style={styles.bellBadge} />}
                 </TouchableOpacity>
               </View>
 
@@ -147,26 +196,43 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.activitiesList}>
-            {ACTIVITIES.map((activity) => (
-              <TouchableOpacity 
-                key={activity.id} 
-                style={styles.activityCard}
-                onPress={() => router.push('/report-false-alert')}
-              >
-                <View style={styles.activityLeft}>
-                  <View style={styles.activityIconWrapper}>
-                    <MaterialCommunityIcons name={activity.icon} size={24} color="white" />
-                  </View>
-                  <View style={styles.activityInfo}>
-                    <Text style={styles.activityTitle}>{activity.title}</Text>
-                    <Text style={styles.activityDesc}>{activity.desc}</Text>
-                  </View>
+          {loading ? (
+            <View style={{ padding: 20 }}>
+              <ActivityIndicator color="#007AFF" />
+            </View>
+          ) : (
+            <View style={styles.activitiesList}>
+              {activities.length > 0 ? (
+                activities.map((activity) => {
+                  const config = ALERT_TYPE_CONFIG[activity.alertType] || { icon: 'bell-outline', color: '#8E8E93' };
+                  return (
+                    <TouchableOpacity 
+                      key={activity.id} 
+                      style={styles.activityCard}
+                      onPress={() => router.push('/alerts')}
+                    >
+                      <View style={styles.activityLeft}>
+                        <View style={[styles.activityIconWrapper, { backgroundColor: config.color + '20' }]}>
+                          <MaterialCommunityIcons name={config.icon} size={24} color={config.color} />
+                        </View>
+                        <View style={styles.activityInfo}>
+                          <Text style={styles.activityTitle}>{activity.alertType}</Text>
+                          <Text style={styles.activityDesc}>
+                            {activity.toVehicleNumber} • {timeAgo(activity.sentAt)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={[styles.statusDot, { backgroundColor: activity.isRead ? '#2C2C2E' : '#007AFF' }]} />
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No recent activity</Text>
                 </View>
-                <View style={[styles.statusDot, { backgroundColor: activity.statusColor }]} />
-              </TouchableOpacity>
-            ))}
-          </View>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -325,7 +391,7 @@ const styles = StyleSheet.create({
   },
   activitiesList: {
     gap: 12,
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   activityCard: {
     flexDirection: 'row',
@@ -336,6 +402,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#2C2C2E',
+    marginBottom: 12,
   },
   activityLeft: {
     flexDirection: 'row',
@@ -346,7 +413,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#2C2C2E',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -369,6 +435,14 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     marginLeft: 12,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#8E8E93',
+    fontSize: 14,
   },
   bottomNav: {
     position: 'absolute',

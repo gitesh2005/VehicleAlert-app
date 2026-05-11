@@ -11,9 +11,10 @@ export const registerVehicle = async (
   vehicleColor: string
 ) => {
   try {
+    const normalizedNumber = vehicleNumber.replace(/\s/g, '').toUpperCase();
     const docRef = await db.collection(VEHICLES_COLLECTION).add({
       userId,
-      vehicleNumber: vehicleNumber.toUpperCase().trim(),
+      vehicleNumber: normalizedNumber,
       vehicleType,
       vehicleModel: vehicleModel.trim(),
       vehicleColor: vehicleColor.trim(),
@@ -28,7 +29,7 @@ export const registerVehicle = async (
 };
 
 export const searchVehicle = async (vehicleNumber: string) => {
-  const normalizedNumber = vehicleNumber.toUpperCase().trim();
+  const normalizedNumber = vehicleNumber.replace(/\s/g, '').toUpperCase();
   console.log("Searching for vehicle:", normalizedNumber);
   try {
     const querySnapshot = await db.collection(VEHICLES_COLLECTION)
@@ -56,6 +57,18 @@ export const checkVehicleExists = async (vehicleNumber: string): Promise<boolean
     return vehicle !== null;
   } catch (error) {
     console.error("Error checking vehicle existence:", error);
+    throw error;
+  }
+};
+
+export const getUserVehicleCount = async (userId: string) => {
+  try {
+    const snapshot = await db.collection(VEHICLES_COLLECTION)
+      .where('userId', '==', userId)
+      .get();
+    return snapshot.size;
+  } catch (error) {
+    console.error("Error getting user vehicle count:", error);
     throw error;
   }
 };

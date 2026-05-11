@@ -10,9 +10,10 @@ export const sendAlert = async (
   message: string
 ) => {
   try {
+    const normalizedNumber = toVehicleNumber.replace(/\s/g, '').toUpperCase();
     const docRef = await db.collection(ALERTS_COLLECTION).add({
       fromUserId: fromUserId || 'anonymous',
-      toVehicleNumber: toVehicleNumber.toUpperCase().trim(),
+      toVehicleNumber: normalizedNumber,
       alertType,
       message: message || "",
       sentAt: firestore.FieldValue.serverTimestamp(),
@@ -32,7 +33,6 @@ export const getMyAlerts = async (vehicleNumbers: string[]) => {
 
     const querySnapshot = await db.collection(ALERTS_COLLECTION)
       .where("toVehicleNumber", "in", vehicleNumbers)
-      .orderBy("sentAt", "desc")
       .get();
     
     return querySnapshot.docs.map(doc => ({
@@ -41,6 +41,78 @@ export const getMyAlerts = async (vehicleNumbers: string[]) => {
     }));
   } catch (error) {
     console.error("Error getting alerts:", error);
+    throw error;
+  }
+};
+
+export const markAlertAsRead = async (alertId: string) => {
+  try {
+    await db.collection(ALERTS_COLLECTION).doc(alertId).update({
+      isRead: true
+    });
+  } catch (error) {
+    console.error("Error marking alert as read:", error);
+    throw error;
+  }
+};
+
+export const submitFalseReport = async (
+  userId: string,
+  vehicleNumber: string,
+  alertId: string,
+  reason: string,
+  additionalDetails: string
+) => {
+  try {
+    // 1. Create report
+    await db.collection('reports').add({
+      reportedBy: userId || 'anonymous',
+      vehicleNumber,
+      alertId,
+      reason,
+      additionalDetails: additionalDetails || '',
+      reportedAt: firestore.FieldValue.serverTimestamp(),
+      status: 'pending'
+    });
+
+    // 2. Update original alert
+    await db.collection(ALERTS_COLLECTION).doc(alertId).update({
+      falseReportCount: firestore.FieldValue.increment(1)
+    });
+
+  } catch (error) {
+    console.error("Error submitting false report:", error);
+    throw error;
+  }
+};
+
+export const getUserFalseReportCount = async (userId: string) => {
+  try {
+    if (!userId) return 0;
+    const snapshot = await db.collection('reports')
+      .where('reportedBy', '==', userId)
+      .get();
+    return snapshot.size;
+  } catch (error) {
+    console.error("Error getting user false report count:", error);
+    throw error;
+  }
+};
+
+export const getUserDailyAlertCount = async (userId: string) => {
+  try {
+    if (!userId) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const snapshot = await db.collection(ALERTS_COLLECTION)
+      .where('fromUserId', '==', userId)
+      .where('sentAt', '>=', firestore.Timestamp.fromDate(today))
+      .get();
+    
+    return snapshot.size;
+  } catch (error) {
+    console.error("Error getting daily alert count:", error);
     throw error;
   }
 };

@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { sendAlert } from '../src/services/alertService';
+import { sendAlert, getUserDailyAlertCount } from '../src/services/alertService';
+import { auth } from '../src/config/firebase';
 
 export default function SendAlertScreen() {
   const router = useRouter();
@@ -60,10 +61,24 @@ export default function SendAlertScreen() {
   const handleSendAlert = async () => {
     if (isSendDisabled) return;
 
+    const user = auth().currentUser;
+    if (!user) {
+      router.replace('/');
+      return;
+    }
+
     setLoading(true);
     try {
+      // Check daily alert limit
+      const dailyCount = await getUserDailyAlertCount(user.uid);
+      if (dailyCount >= 10) {
+        setLoading(false);
+        Alert.alert('Limit Reached', 'Maximum 10 alerts allowed per day to prevent spam.');
+        return;
+      }
+
       await sendAlert(
-        'anonymous', // Setting as anonymous as requested
+        user.uid,
         displayVehicleNumber,
         selectedAlert,
         message
@@ -94,7 +109,6 @@ export default function SendAlertScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-        {/* Header Gradient Section */}
         <LinearGradient
           colors={['#e8570a', '#0d1117']}
           style={styles.headerGradient}
@@ -117,7 +131,6 @@ export default function SendAlertScreen() {
         </LinearGradient>
 
         <View style={styles.mainContent}>
-          {/* Vehicle Info Card */}
           <View style={styles.vehicleCard}>
             <View style={styles.vehicleInfoLeft}>
               <Text style={styles.carEmoji}>🚗</Text>
@@ -125,11 +138,10 @@ export default function SendAlertScreen() {
             </View>
             <View style={styles.vehicleInfoRight}>
               <Text style={styles.lockEmoji}>🔒</Text>
-              <Text style={styles.anonymousText}>Anonymous</Text>
+              <Text style={styles.anonymousText}>Protected</Text>
             </View>
           </View>
 
-          {/* Alert Type Section */}
           <Text style={styles.sectionTitle}>Select Alert Type</Text>
           <View style={styles.alertGrid}>
             {alertTypes.map((item) => (
@@ -156,7 +168,6 @@ export default function SendAlertScreen() {
             ))}
           </View>
 
-          {/* Message Section */}
           <Text style={styles.sectionTitle}>Add Message (Optional)</Text>
           <TextInput
             style={styles.messageInput}
@@ -168,15 +179,13 @@ export default function SendAlertScreen() {
             onChangeText={setMessage}
           />
 
-          {/* Anonymous Banner */}
           <View style={styles.anonymousBanner}>
             <Text style={styles.bannerEmoji}>🔒</Text>
             <Text style={styles.bannerText}>
-              Your identity is 100% anonymous. Phone number never shared.
+              Your identity is protected. We prevent spam through daily alert limits.
             </Text>
           </View>
 
-          {/* Send Button */}
           <TouchableOpacity 
             style={[styles.sendButtonContainer, isSendDisabled && styles.disabledButton]} 
             activeOpacity={0.8}
@@ -197,7 +206,6 @@ export default function SendAlertScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Cancel Link */}
           <TouchableOpacity onPress={() => router.back()} style={styles.cancelButton}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>

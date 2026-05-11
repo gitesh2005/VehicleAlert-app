@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { auth } from '../src/config/firebase';
-import { registerVehicle } from '../src/services/vehicleService';
+import { registerVehicle, getUserVehicleCount } from '../src/services/vehicleService';
 
 const VEHICLE_TYPES = [
   { id: 'Car', label: 'Car', emoji: '🚗' },
@@ -23,6 +23,8 @@ const VEHICLE_TYPES = [
   { id: 'Bus', label: 'Bus', emoji: '🚌' },
   { id: 'Truck', label: 'Truck', emoji: '🚛' },
 ];
+
+const VEHICLE_REGEX = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,2}[0-9]{4}$/;
 
 export default function RegisterVehicleScreen() {
   const router = useRouter();
@@ -32,7 +34,12 @@ export default function RegisterVehicleScreen() {
   const [vehicleColor, setVehicleColor] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Error states
+  useEffect(() => {
+    if (!auth().currentUser) {
+      router.replace('/');
+    }
+  }, []);
+
   const [errors, setErrors] = useState({
     vehicleNumber: '',
     vehicleType: '',
@@ -49,11 +56,13 @@ export default function RegisterVehicleScreen() {
       vehicleColor: '',
     };
 
-    if (!vehicleNumber.trim()) {
+    const cleanNumber = vehicleNumber.replace(/\s/g, '').toUpperCase();
+
+    if (!cleanNumber) {
       newErrors.vehicleNumber = 'Vehicle number is required';
       isValid = false;
-    } else if (vehicleNumber.trim().length < 6) {
-      newErrors.vehicleNumber = 'Minimum 6 characters required';
+    } else if (!VEHICLE_REGEX.test(cleanNumber)) {
+      newErrors.vehicleNumber = 'Please enter valid Indian vehicle number e.g. MH12AB3456';
       isValid = false;
     }
 
@@ -79,13 +88,25 @@ export default function RegisterVehicleScreen() {
   const handleRegister = async () => {
     if (!validate()) return;
 
-    setLoading(true);
-    const userId = auth().currentUser?.uid || 'test-user';
+    const user = auth().currentUser;
+    if (!user) {
+      router.replace('/');
+      return;
+    }
 
+    setLoading(true);
     try {
+      // Check vehicle limit
+      const vehicleCount = await getUserVehicleCount(user.uid);
+      if (vehicleCount >= 3) {
+        setLoading(false);
+        Alert.alert('Limit Reached', 'Maximum 3 vehicles allowed per account');
+        return;
+      }
+
       await registerVehicle(
-        userId,
-        vehicleNumber.toUpperCase(),
+        user.uid,
+        vehicleNumber.replace(/\s/g, '').toUpperCase(),
         vehicleType,
         vehicleModel,
         vehicleColor
@@ -132,7 +153,6 @@ export default function RegisterVehicleScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.form}>
-          {/* Vehicle Number */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Vehicle Number</Text>
             <TextInput
@@ -149,7 +169,6 @@ export default function RegisterVehicleScreen() {
             {errors.vehicleNumber ? <Text style={styles.errorText}>{errors.vehicleNumber}</Text> : null}
           </View>
 
-          {/* Vehicle Type */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Vehicle Type</Text>
             <View style={styles.typeSelector}>
@@ -179,7 +198,6 @@ export default function RegisterVehicleScreen() {
             {errors.vehicleType ? <Text style={styles.errorText}>{errors.vehicleType}</Text> : null}
           </View>
 
-          {/* Vehicle Model */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Vehicle Model</Text>
             <TextInput
@@ -195,7 +213,6 @@ export default function RegisterVehicleScreen() {
             {errors.vehicleModel ? <Text style={styles.errorText}>{errors.vehicleModel}</Text> : null}
           </View>
 
-          {/* Vehicle Color */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Vehicle Color</Text>
             <TextInput
@@ -211,7 +228,6 @@ export default function RegisterVehicleScreen() {
             {errors.vehicleColor ? <Text style={styles.errorText}>{errors.vehicleColor}</Text> : null}
           </View>
 
-          {/* Plate Preview */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Plate Preview</Text>
             <View style={styles.plateContainer}>
@@ -227,7 +243,6 @@ export default function RegisterVehicleScreen() {
             </View>
           </View>
 
-          {/* Submit Button */}
           <TouchableOpacity 
             style={styles.registerButtonContainer}
             onPress={handleRegister}

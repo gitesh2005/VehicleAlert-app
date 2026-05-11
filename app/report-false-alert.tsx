@@ -9,10 +9,13 @@ import {
   TextInput,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { auth } from '../src/config/firebase';
+import { submitFalseReport, getUserFalseReportCount } from '../src/services/alertService';
 
 const REASONS = [
   { id: '1', label: 'My vehicle was parked correctly' },
@@ -24,15 +27,60 @@ const REASONS = [
 
 export default function ReportFalseAlertScreen() {
   const router = useRouter();
-  const [selectedReason, setSelectedReason] = useState('3'); // Default selected as per prompt
-  const [details, setDetails] = useState('');
+  const { alertId, vehicleNumber, alertType } = useLocalSearchParams<{ 
+    alertId: string, 
+    vehicleNumber: string, 
+    alertType: string 
+  }>();
 
-  const handleSubmit = () => {
-    Alert.alert(
-      "Report Submitted",
-      "Thank you for your feedback. We will investigate this alert.",
-      [{ text: "OK", onPress: () => router.back() }]
-    );
+  const [selectedReason, setSelectedReason] = useState('3');
+  const [details, setDetails] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!alertId || !vehicleNumber) {
+      Alert.alert("Error", "Missing alert information.");
+      return;
+    }
+
+    setLoading(true);
+    const userId = auth().currentUser?.uid || 'anonymous';
+
+    try {
+      // 1. Submit the report
+      await submitFalseReport(
+        userId,
+        vehicleNumber,
+        alertId,
+        REASONS.find(r => r.id === selectedReason)?.label || 'Other',
+        details
+      );
+
+      // 2. Check user's total false reports
+      const reportCount = await getUserFalseReportCount(userId);
+      
+      setLoading(false);
+      Alert.alert(
+        "Success",
+        "✅ Report submitted successfully!",
+        [{ text: "OK" }]
+      );
+
+      if (reportCount >= 10) {
+        setTimeout(() => {
+          router.replace('/account-blocked');
+        }, 1000);
+      } else {
+        setTimeout(() => {
+          router.back();
+        }, 1000);
+      }
+
+    } catch (error) {
+      setLoading(false);
+      console.error("Report error:", error);
+      Alert.alert("Error", "❌ Failed to submit report. Please try again.");
+    }
   };
 
   return (
@@ -60,8 +108,9 @@ export default function ReportFalseAlertScreen() {
         <View style={styles.content}>
           <View style={styles.alertCard}>
             <Text style={styles.alertCardLabel}>Alert You Received</Text>
-            <Text style={styles.alertInfo}>🅿️ Wrong Parking • MH 12 AB 3456</Text>
-            <Text style={styles.alertTime}>Received 10 min ago</Text>
+            <Text style={styles.alertInfo}>
+              {alertType || 'Alert'} • {vehicleNumber || 'Unknown'}
+            </Text>
           </View>
 
           <View style={styles.warningStrip}>
@@ -109,10 +158,15 @@ export default function ReportFalseAlertScreen() {
           />
 
           <TouchableOpacity 
-            style={styles.submitButton}
+            style={[styles.submitButton, loading && styles.disabledButton]}
             onPress={handleSubmit}
+            disabled={loading}
           >
-            <Text style={styles.submitButtonText}>🚨 Submit Report</Text>
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.submitButtonText}>🚨 Submit Report</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -156,6 +210,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
   },
   alertCardLabel: {
     fontSize: 11,
@@ -166,11 +222,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 4,
-  },
-  alertTime: {
-    fontSize: 11,
-    color: '#8E8E93',
   },
   warningStrip: {
     backgroundColor: '#1a1200',
@@ -244,6 +295,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 40,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   submitButtonText: {
     color: 'white',

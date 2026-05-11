@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,53 +7,125 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { db, auth } from '../src/config/firebase';
+import { getMyAlerts, markAlertAsRead } from '../src/services/alertService';
 
-const RECEIVED_ALERTS = [
-  {
-    id: '1',
-    emoji: '🅿️',
-    title: 'Wrong Parking',
-    desc: 'Someone alerted your MH 12 AB 3456',
-    time: '2 hours ago',
-    dotColor: '#FF9500', // orange
-  },
-  {
-    id: '2',
-    emoji: '💡',
-    title: 'Lights Left On',
-    desc: 'Someone alerted your DL 08 CD 7890',
-    time: 'Yesterday',
-    dotColor: '#FFCC00', // yellow
-  },
-];
-
-const SENT_ALERTS = [
-  {
-    id: '1',
-    emoji: '🚨',
-    title: 'Reckless Driving',
-    desc: 'You alerted KA 05 MN 2345',
-    time: '3 hours ago',
-    dotColor: '#FF4444', // red
-  },
-  {
-    id: '2',
-    emoji: '🔧',
-    title: 'Vehicle Issue',
-    desc: 'You alerted GJ 01 AB 1234',
-    time: '2 days ago',
-    dotColor: '#007AFF', // blue
-  },
-];
+const ALERT_META: Record<string, { emoji: string, color: string }> = {
+  'Wrong Parking': { emoji: '🅿️', color: '#FF9500' },
+  'Lights Left On': { emoji: '💡', color: '#FFCC00' },
+  'Reckless Driving': { emoji: '🚨', color: '#FF4444' },
+  'Vehicle Issue': { emoji: '🔧', color: '#007AFF' },
+};
 
 export default function AlertsScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'Received' | 'Sent'>('Received');
+  const [loading, setLoading] = useState(true);
+  const [receivedAlerts, setReceivedAlerts] = useState<any[]>([]);
+  const [sentAlerts, setSentAlerts] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const alerts = activeTab === 'Received' ? RECEIVED_ALERTS : SENT_ALERTS;
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    await Promise.all([fetchReceivedAlerts(), fetchSentAlerts()]);
+    setLoading(false);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchReceivedAlerts(), fetchSentAlerts()]);
+    setRefreshing(false);
+  };
+
+  const sortAlerts = (alerts: any[]) => {
+    return [...alerts].sort((a, b) => {
+      const timeA = a.sentAt?.toDate ? a.sentAt.toDate().getTime() : 0;
+      const timeB = b.sentAt?.toDate ? b.sentAt.toDate().getTime() : 0;
+      return timeB - timeA;
+    });
+  };
+
+  const fetchReceivedAlerts = async () => {
+    const userId = auth().currentUser?.uid;
+    if (!userId) return;
+
+    try {
+      const vehiclesSnapshot = await db.collection('vehicles')
+        .where('userId', '==', userId)
+        .get();
+      
+      const myVehicleNumbers = vehiclesSnapshot.docs.map(doc => doc.data().vehicleNumber);
+
+      if (myVehicleNumbers.length === 0) {
+        setReceivedAlerts([]);
+        return;
+      }
+
+      const alerts = await getMyAlerts(myVehicleNumbers);
+      setReceivedAlerts(sortAlerts(alerts));
+    } catch (error) {
+      console.error("Error fetching received alerts:", error);
+    }
+  };
+
+  const fetchSentAlerts = async () => {
+    const userId = auth().currentUser?.uid;
+    if (!userId) return;
+
+    try {
+      const querySnapshot = await db.collection('alerts')
+        .where('fromUserId', '==', userId)
+        .get();
+      
+      const alerts = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSentAlerts(sortAlerts(alerts));
+    } catch (error) {
+      console.error("Error fetching sent alerts:", error);
+    }
+  };
+
+  const handleMarkAsRead = async (alertId: string, isRead: boolean) => {
+    if (isRead || activeTab === 'Sent') return;
+
+    try {
+      await markAlertAsRead(alertId);
+      setReceivedAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isRead: true } : a));
+    } catch (error) {
+      console.error("Error marking as read:", error);
+    }
+  };
+
+  const timeAgo = (timestamp: any) => {
+    if (!timestamp) return 'Just now';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " years ago";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " months ago";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " days ago";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " hours ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " minutes ago";
+    return Math.floor(seconds) + " seconds ago";
+  };
+
+  const alerts = activeTab === 'Received' ? receivedAlerts : sentAlerts;
 
   return (
     <View style={styles.container}>
@@ -87,24 +159,50 @@ export default function AlertsScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {alerts.map((alert) => (
-            <View key={alert.id} style={styles.alertCard}>
-              <View style={styles.alertLeft}>
-                <Text style={styles.alertEmoji}>{alert.emoji}</Text>
-                <View style={styles.alertInfo}>
-                  <Text style={styles.alertTitle}>{alert.title}</Text>
-                  <Text style={styles.alertDesc}>{alert.desc}</Text>
-                  <Text style={styles.alertTime}>{alert.time}</Text>
-                </View>
+        {loading && !refreshing ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+          </View>
+        ) : (
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#007AFF" />
+            }
+          >
+            {alerts.length > 0 ? (
+              alerts.map((alert) => {
+                const meta = ALERT_META[alert.alertType] || { emoji: '🚨', color: '#8E8E93' };
+                return (
+                  <TouchableOpacity 
+                    key={alert.id} 
+                    style={styles.alertCard}
+                    onPress={() => handleMarkAsRead(alert.id, alert.isRead)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.alertLeft}>
+                      <Text style={styles.alertEmoji}>{meta.emoji}</Text>
+                      <View style={styles.alertInfo}>
+                        <Text style={styles.alertTitle}>{alert.alertType}</Text>
+                        <Text style={styles.alertDesc}>{alert.toVehicleNumber}</Text>
+                        <Text style={styles.alertTime}>{timeAgo(alert.sentAt)}</Text>
+                      </View>
+                    </View>
+                    {activeTab === 'Received' && !alert.isRead && (
+                      <View style={[styles.statusDot, { backgroundColor: '#007AFF' }]} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyEmoji}>🎉</Text>
+                <Text style={styles.emptyText}>No alerts yet</Text>
               </View>
-              <View style={[styles.statusDot, { backgroundColor: alert.dotColor }]} />
-            </View>
-          ))}
-        </ScrollView>
+            )}
+          </ScrollView>
+        )}
       </SafeAreaView>
 
       {/* Bottom Navigation */}
@@ -176,6 +274,11 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: '#007AFF',
   },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 100,
@@ -188,6 +291,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
   },
   alertLeft: {
     flexDirection: 'row',
@@ -217,10 +322,24 @@ const styles = StyleSheet.create({
     color: '#636366',
   },
   statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginLeft: 12,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#8E8E93',
   },
   bottomNav: {
     position: 'absolute',
