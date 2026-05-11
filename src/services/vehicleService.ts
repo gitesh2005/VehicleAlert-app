@@ -1,23 +1,23 @@
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  serverTimestamp,
-  DocumentData
-} from "firebase/firestore";
+import firestore from '@react-native-firebase/firestore';
 import { db } from "../config/firebase";
 
 const VEHICLES_COLLECTION = "vehicles";
 
-export const registerVehicle = async (userId: string, vehicleNumber: string, vehicleType: string) => {
+export const registerVehicle = async (
+  userId: string, 
+  vehicleNumber: string, 
+  vehicleType: string,
+  vehicleModel: string,
+  vehicleColor: string
+) => {
   try {
-    const docRef = await addDoc(collection(db, VEHICLES_COLLECTION), {
+    const docRef = await db.collection(VEHICLES_COLLECTION).add({
       userId,
       vehicleNumber: vehicleNumber.toUpperCase().trim(),
       vehicleType,
-      registeredAt: serverTimestamp(),
+      vehicleModel: vehicleModel.trim(),
+      vehicleColor: vehicleColor.trim(),
+      registeredAt: firestore.FieldValue.serverTimestamp(),
       isActive: true,
     });
     return docRef.id;
@@ -27,13 +27,11 @@ export const registerVehicle = async (userId: string, vehicleNumber: string, veh
   }
 };
 
-export const searchVehicle = async (vehicleNumber: string): Promise<(DocumentData & { id: string }) | null> => {
+export const searchVehicle = async (vehicleNumber: string) => {
   try {
-    const q = query(
-      collection(db, VEHICLES_COLLECTION), 
-      where("vehicleNumber", "==", vehicleNumber.toUpperCase().trim())
-    );
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await db.collection(VEHICLES_COLLECTION)
+      .where("vehicleNumber", "==", vehicleNumber.toUpperCase().trim())
+      .get();
     
     if (querySnapshot.empty) {
       return null;

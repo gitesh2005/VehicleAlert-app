@@ -61,7 +61,7 @@ export default function HomeScreen() {
   const handleActionPress = (id: string) => {
     switch (id) {
       case '1':
-        Alert.alert("Coming Soon!", "Vehicle registration will be available in the next update.");
+        router.push('/register-vehicle');
         break;
       case '2':
         router.push('/send-alert');

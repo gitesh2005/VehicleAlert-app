@@ -1,25 +1,16 @@
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  serverTimestamp,
-  orderBy,
-  DocumentData
-} from "firebase/firestore";
+import firestore from '@react-native-firebase/firestore';
 import { db } from "../config/firebase";
 
 const ALERTS_COLLECTION = "alerts";
 
 export const sendAlert = async (fromUserId: string, vehicleNumber: string, alertType: string, message: string) => {
   try {
-    const docRef = await addDoc(collection(db, ALERTS_COLLECTION), {
+    const docRef = await db.collection(ALERTS_COLLECTION).add({
       fromUserId,
       vehicleNumber: vehicleNumber.toUpperCase().trim(),
       alertType,
       message: message || "",
-      sentAt: serverTimestamp(),
+      sentAt: firestore.FieldValue.serverTimestamp(),
       isRead: false,
     });
     return docRef.id;
@@ -29,17 +20,15 @@ export const sendAlert = async (fromUserId: string, vehicleNumber: string, alert
   }
 };
 
-export const getMyAlerts = async (vehicleNumbers: string[]): Promise<DocumentData[]> => {
+export const getMyAlerts = async (vehicleNumbers: string[]) => {
   try {
     if (!vehicleNumbers || vehicleNumbers.length === 0) return [];
 
-    const q = query(
-      collection(db, ALERTS_COLLECTION),
-      where("vehicleNumber", "in", vehicleNumbers),
-      orderBy("sentAt", "desc")
-    );
+    const querySnapshot = await db.collection(ALERTS_COLLECTION)
+      .where("vehicleNumber", "in", vehicleNumbers)
+      .orderBy("sentAt", "desc")
+      .get();
     
-    const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
