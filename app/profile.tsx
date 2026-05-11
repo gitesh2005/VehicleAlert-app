@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -28,7 +28,6 @@ export default function ProfileScreen() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Real-time stats states
   const [sentCount, setSentCount] = useState(0);
   const [receivedCount, setReceivedCount] = useState(0);
   const [resolvedCount, setResolvedCount] = useState(0);
@@ -36,108 +35,214 @@ export default function ProfileScreen() {
   const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([]);
   const [trustScore, setTrustScore] = useState<number>(15);
 
-  // 1. Listen for user data (Trust Score)
+  const isLoggingOutRef = useRef(false);
+
+  // 1. Listen for user data
   useEffect(() => {
-    const userId = auth().currentUser?.uid;
-    if (!userId) return;
+    let unsubscribeUser: (() => void) | null = null;
 
-    const unsubscribeUser = db.collection('users').doc(userId)
-      .onSnapshot(doc => {
-        if (doc.exists) {
-          const score = doc.data()?.trustScore ?? 15;
-          
-          // Warning notifications
-          if (score === 10 && trustScore > 10) {
-            Alert.alert("⚠️ Warning", "Your trust score is dropping. Please avoid sending false alerts.");
-          } else if (score === 5 && trustScore > 5) {
-            Alert.alert("🔴 Danger", "Your trust score is critically low. Account may be blocked soon!");
-          } else if (score === 0) {
-            router.replace('/account-blocked');
-            return;
+    const authUnsubscribe = auth().onAuthStateChanged((user) => {
+      if (unsubscribeUser) {
+        unsubscribeUser();
+        unsubscribeUser = null;
+      }
+
+      if (!user) {
+        return;
+      }
+
+      unsubscribeUser = db.collection('users').doc(user.uid)
+        .onSnapshot(
+          (doc) => {
+            if (doc.exists) {
+              const score = doc.data()?.trustScore ?? 15;
+              
+              if (score === 10 && trustScore > 10) {
+                Alert.alert("⚠️ Warning", "Your trust score is dropping. Please avoid sending false alerts.");
+              } else if (score === 5 && trustScore > 5) {
+                Alert.alert("🔴 Danger", "Your trust score is critically low. Account may be blocked soon!");
+              } else if (score === 0) {
+                router.replace('/account-blocked');
+                return;
+              }
+              
+              setTrustScore(score);
+            }
+          },
+          (error) => {
+            if (!auth().currentUser || isLoggingOutRef.current) {
+              return;
+            }
+
+            console.error("User data listener error:", error);
           }
-          
-          setTrustScore(score);
-        }
-      }, error => {
-        console.error("User data listener error:", error);
-      });
+        );
+    });
 
-    return () => unsubscribeUser();
-  }, [trustScore]);
+    return () => {
+      if (unsubscribeUser) {
+        unsubscribeUser();
+        unsubscribeUser = null;
+      }
+
+      authUnsubscribe();
+    };
+  }, [trustScore, router]);
 
   // 2. Listen for user's vehicles
   useEffect(() => {
-    const userId = auth().currentUser?.uid;
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
+    let unsubscribeVehicles: (() => void) | null = null;
 
-    const unsubscribeVehicles = db.collection('vehicles')
-      .where('userId', '==', userId)
-      .onSnapshot(snapshot => {
-        if (!snapshot) {
-          console.warn("Vehicles snapshot is null");
-          setLoading(false);
-          return;
-        }
-        const vehicleList = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setVehicles(vehicleList);
-        setVehicleNumbers(vehicleList.map(v => v.vehicleNumber));
-        setLoading(false);
-      }, error => {
-        console.error("Vehicles listener error:", error);
-        setLoading(false);
-      });
+    const authUnsubscribe = auth().onAuthStateChanged((user) => {
+      if (unsubscribeVehicles) {
+        unsubscribeVehicles();
+        unsubscribeVehicles = null;
+      }
 
-    return () => unsubscribeVehicles();
+      if (!user) {
+        setVehicles([]);
+        setVehicleNumbers([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+
+      unsubscribeVehicles = db.collection('vehicles')
+        .where('userId', '==', user.uid)
+        .onSnapshot(
+          (snapshot) => {
+            if (!snapshot) {
+              console.warn("Vehicles snapshot is null");
+              setLoading(false);
+              return;
+            }
+
+            const vehicleList = snapshot.docs.map((vehicleDoc: any) => ({
+              id: vehicleDoc.id,
+              ...vehicleDoc.data()
+            }));
+
+            setVehicles(vehicleList);
+            setVehicleNumbers(vehicleList.map((v: any) => v.vehicleNumber));
+            setLoading(false);
+          },
+          (error) => {
+            if (!auth().currentUser || isLoggingOutRef.current) {
+              return;
+            }
+
+            console.error("Vehicles listener error:", error);
+            setLoading(false);
+          }
+        );
+    });
+
+    return () => {
+      if (unsubscribeVehicles) {
+        unsubscribeVehicles();
+        unsubscribeVehicles = null;
+      }
+
+      authUnsubscribe();
+    };
   }, []);
 
   const vehicleNumbersKey = vehicleNumbers.join(',');
 
-  // 2. Listen for received/resolved alerts
+  // 3. Listen for received/resolved alerts
   useEffect(() => {
-    const userId = auth().currentUser?.uid;
-    if (!userId) return;
+    let unsubscribeReceived: (() => void) | null = null;
 
-    const unsubscribeReceived = db.collection('alerts')
-      .where('toUserId', '==', userId)
-      .onSnapshot(alertSnapshot => {
-        if (!alertSnapshot) {
-          console.warn("Received alerts snapshot is null");
-          return;
-        }
-        const alerts = alertSnapshot.docs.map(doc => doc.data());
-        setReceivedCount(alerts.length);
-        setResolvedCount(alerts.filter(a => a.status === 'resolved').length);
-      }, error => {
-        console.error("Received alerts listener error:", error);
-      });
+    const authUnsubscribe = auth().onAuthStateChanged((user) => {
+      if (unsubscribeReceived) {
+        unsubscribeReceived();
+        unsubscribeReceived = null;
+      }
 
-    return () => unsubscribeReceived();
+      if (!user) {
+        setReceivedCount(0);
+        setResolvedCount(0);
+        return;
+      }
+
+      unsubscribeReceived = db.collection('alerts')
+        .where('toUserId', '==', user.uid)
+        .onSnapshot(
+          (alertSnapshot) => {
+            if (!alertSnapshot) {
+              console.warn("Received alerts snapshot is null");
+              return;
+            }
+
+            const alerts = alertSnapshot.docs.map((alertDoc: any) => alertDoc.data());
+            setReceivedCount(alerts.length);
+            setResolvedCount(alerts.filter((a: any) => a.status === 'resolved').length);
+          },
+          (error) => {
+            if (!auth().currentUser || isLoggingOutRef.current) {
+              return;
+            }
+
+            console.error("Received alerts listener error:", error);
+          }
+        );
+    });
+
+    return () => {
+      if (unsubscribeReceived) {
+        unsubscribeReceived();
+        unsubscribeReceived = null;
+      }
+
+      authUnsubscribe();
+    };
   }, []);
 
-  // 3. Listen for sent alerts
+  // 4. Listen for sent alerts
   useEffect(() => {
-    const userId = auth().currentUser?.uid;
-    if (!userId) return;
+    let unsubscribeSent: (() => void) | null = null;
 
-    const unsubscribeSent = db.collection('alerts')
-      .where('fromUserId', '==', userId)
-      .onSnapshot(snapshot => {
-        if (!snapshot) {
-          console.warn("Sent alerts snapshot is null");
-          return;
-        }
-        setSentCount(snapshot.size);
-      }, error => {
-        console.error("Sent alerts listener error:", error);
-      });
+    const authUnsubscribe = auth().onAuthStateChanged((user) => {
+      if (unsubscribeSent) {
+        unsubscribeSent();
+        unsubscribeSent = null;
+      }
 
-    return () => unsubscribeSent();
+      if (!user) {
+        setSentCount(0);
+        return;
+      }
+
+      unsubscribeSent = db.collection('alerts')
+        .where('fromUserId', '==', user.uid)
+        .onSnapshot(
+          (snapshot) => {
+            if (!snapshot) {
+              console.warn("Sent alerts snapshot is null");
+              return;
+            }
+
+            setSentCount(snapshot.size);
+          },
+          (error) => {
+            if (!auth().currentUser || isLoggingOutRef.current) {
+              return;
+            }
+
+            console.error("Sent alerts listener error:", error);
+          }
+        );
+    });
+
+    return () => {
+      if (unsubscribeSent) {
+        unsubscribeSent();
+        unsubscribeSent = null;
+      }
+
+      authUnsubscribe();
+    };
   }, []);
 
   const handleLogout = () => {
@@ -151,10 +256,19 @@ export default function ProfileScreen() {
           style: "destructive", 
           onPress: async () => {
             try {
+              isLoggingOutRef.current = true;
+
+              setVehicles([]);
+              setVehicleNumbers([]);
+              setSentCount(0);
+              setReceivedCount(0);
+              setResolvedCount(0);
+
               await auth().signOut();
+
               router.replace('/');
-              Alert.alert("Success", "Logged out successfully");
             } catch (error) {
+              isLoggingOutRef.current = false;
               console.error("Logout error:", error);
               Alert.alert("Error", "Failed to logout. Please try again.");
             }
@@ -218,7 +332,6 @@ export default function ProfileScreen() {
         <SafeAreaView style={styles.safeArea}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             
-            {/* Profile Header */}
             <View style={styles.header}>
               <LinearGradient
                 colors={['#4a90e2', '#357abd']}
@@ -233,7 +346,6 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
-            {/* Account Status Card */}
             <View style={styles.section}>
               <Text style={styles.sectionHeading}>Account Status</Text>
               <View style={styles.statusCard}>
@@ -260,7 +372,6 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* Registered Vehicles Section */}
             <View style={styles.section}>
               <Text style={styles.sectionHeading}>My Registered Vehicles</Text>
               
@@ -321,7 +432,6 @@ export default function ProfileScreen() {
               )}
             </View>
 
-            {/* Stats Section */}
             <View style={styles.section}>
               <Text style={styles.sectionHeading}>Your Stats</Text>
               <View style={styles.statsContainer}>
@@ -334,7 +444,6 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* Settings Menu */}
             <View style={styles.section}>
               {menuItems.map((item) => (
                 <TouchableOpacity 
@@ -351,7 +460,6 @@ export default function ProfileScreen() {
               ))}
             </View>
 
-            {/* Logout Row */}
             <TouchableOpacity style={styles.logoutRow} onPress={handleLogout}>
               <View style={styles.menuLeft}>
                 <View style={styles.logoutIconWrapper}>
@@ -366,7 +474,6 @@ export default function ProfileScreen() {
         </SafeAreaView>
       </LinearGradient>
 
-      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push('/home')}>
           <Ionicons name="home-outline" size={24} color="#8e8e93" />

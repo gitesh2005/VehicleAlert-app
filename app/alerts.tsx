@@ -31,79 +31,127 @@ export default function AlertsScreen() {
   const [sentAlerts, setSentAlerts] = useState<any[]>([]);
 
   useEffect(() => {
-    const userId = auth().currentUser?.uid;
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
+    let unsubscribeReceived: (() => void) | null = null;
+    let unsubscribeSent: (() => void) | null = null;
+    let unsubscribeFallbackSent: (() => void) | null = null;
 
-    let unsubscribeReceived: () => void = () => {};
-    let unsubscribeSent: () => void = () => {};
+    const cleanupListeners = () => {
+      if (unsubscribeReceived) {
+        unsubscribeReceived();
+        unsubscribeReceived = null;
+      }
 
-    // 1. Listen for received alerts
-    const listenToReceivedAlerts = () => {
-      unsubscribeReceived = db.collection('alerts')
-        .where('toUserId', '==', userId)
-        .onSnapshot(snapshot => {
-          if (snapshot) {
-            const alerts = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }));
-            setReceivedAlerts(sortAlerts(alerts));
-            setError(null);
-          }
-          setLoading(false);
-        }, err => {
-          console.error("Received alerts listener error:", err);
-          if (err.message?.includes('permission-denied')) {
-            setError("Permission denied. Please check your Firestore rules.");
-          } else {
-            setError("Failed to load received alerts.");
-          }
-          setLoading(false);
-        });
+      if (unsubscribeSent) {
+        unsubscribeSent();
+        unsubscribeSent = null;
+      }
+
+      if (unsubscribeFallbackSent) {
+        unsubscribeFallbackSent();
+        unsubscribeFallbackSent = null;
+      }
     };
 
-    // 2. Listen for sent alerts
-    unsubscribeSent = db.collection('alerts')
-      .where('fromUserId', '==', userId)
-      .orderBy('sentAt', 'desc')
-      .limit(20)
-      .onSnapshot(snapshot => {
-        if (snapshot) {
-          const alerts = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          setSentAlerts(alerts);
-        }
-      }, err => {
-        // If index is missing, fallback to client-side sorting
-        if (err.message?.includes('requires an index')) {
-          console.warn("Sent alerts index missing, falling back to client-side sort");
-          db.collection('alerts')
-            .where('fromUserId', '==', userId)
-            .limit(20)
-            .onSnapshot(snapshot => {
-              if (snapshot) {
-                const alerts = snapshot.docs.map(doc => ({
-                  id: doc.id,
-                  ...doc.data()
-                }));
-                setSentAlerts(sortAlerts(alerts));
-              }
-            });
-        } else {
-          console.error("Sent alerts listener error:", err);
-        }
-      });
+    const authUnsubscribe = auth().onAuthStateChanged((user) => {
+      cleanupListeners();
 
-    listenToReceivedAlerts();
+      if (!user) {
+        setReceivedAlerts([]);
+        setSentAlerts([]);
+        setLoading(false);
+        setError(null);
+        return;
+      }
+
+      const userId = user.uid;
+      setLoading(true);
+
+      // 1. Listen for received alerts
+      unsubscribeReceived = db.collection('alerts')
+        .where('toUserId', '==', userId)
+        .onSnapshot(
+          (snapshot) => {
+            const alerts = snapshot.docs.map((alertDoc: any) => ({
+              id: alertDoc.id,
+              ...alertDoc.data(),
+            }));
+
+            setReceivedAlerts(sortAlerts(alerts));
+            setError(null);
+            setLoading(false);
+          },
+          (err) => {
+            // Logout ke baad permission error aaye to ignore karo
+            if (!auth().currentUser) {
+              return;
+            }
+
+            console.error("Received alerts listener error:", err);
+
+            if (err.message?.includes('permission-denied')) {
+              setError("Permission denied. Please check your Firestore rules.");
+            } else {
+              setError("Failed to load received alerts.");
+            }
+
+            setLoading(false);
+          }
+        );
+
+      // 2. Listen for sent alerts
+      unsubscribeSent = db.collection('alerts')
+        .where('fromUserId', '==', userId)
+        .orderBy('sentAt', 'desc')
+        .limit(20)
+        .onSnapshot(
+          (snapshot) => {
+            const alerts = snapshot.docs.map((alertDoc: any) => ({
+              id: alertDoc.id,
+              ...alertDoc.data(),
+            }));
+
+            setSentAlerts(alerts);
+          },
+          (err) => {
+            // Logout ke baad permission error aaye to ignore karo
+            if (!auth().currentUser) {
+              return;
+            }
+
+            // If index is missing, fallback to client-side sorting
+            if (err.message?.includes('requires an index')) {
+              console.warn("Sent alerts index missing, falling back to client-side sort");
+
+              unsubscribeFallbackSent = db.collection('alerts')
+                .where('fromUserId', '==', userId)
+                .limit(20)
+                .onSnapshot(
+                  (snapshot) => {
+                    const alerts = snapshot.docs.map((alertDoc: any) => ({
+                      id: alertDoc.id,
+                      ...alertDoc.data(),
+                    }));
+
+                    setSentAlerts(sortAlerts(alerts));
+                  },
+                  (fallbackErr) => {
+                    if (!auth().currentUser) {
+                      return;
+                    }
+
+                    console.error("Sent alerts fallback listener error:", fallbackErr);
+                  }
+                );
+            } else {
+              console.error("Sent alerts listener error:", err);
+            }
+          }
+        );
+    });
 
     return () => {
-      unsubscribeReceived();
-      unsubscribeSent();
+      cleanupListeners();
+      authUnsubscribe();
     };
   }, []);
 
@@ -476,4 +524,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-
