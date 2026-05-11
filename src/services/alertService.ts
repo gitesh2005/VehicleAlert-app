@@ -105,12 +105,20 @@ export const getUserDailyAlertCount = async (userId: string) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Get all alerts from this user and filter by date in memory 
+    // to avoid requiring a composite index
     const snapshot = await db.collection(ALERTS_COLLECTION)
       .where('fromUserId', '==', userId)
-      .where('sentAt', '>=', firestore.Timestamp.fromDate(today))
       .get();
     
-    return snapshot.size;
+    const todayTimestamp = today.getTime();
+    const count = snapshot.docs.filter(doc => {
+      const data = doc.data();
+      const sentAt = data.sentAt?.toDate ? data.sentAt.toDate().getTime() : 0;
+      return sentAt >= todayTimestamp;
+    }).length;
+    
+    return count;
   } catch (error) {
     console.error("Error getting daily alert count:", error);
     throw error;
