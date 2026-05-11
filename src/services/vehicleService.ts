@@ -42,7 +42,7 @@ export const searchVehicle = async (vehicleNumber: string) => {
     }
 
     const doc = querySnapshot.docs[0];
-    const data = { id: doc.id, ...doc.data() };
+    const data = { id: doc.id, ...doc.data() } as any;
     console.log("Vehicle found:", data);
     return data;
   } catch (error) {

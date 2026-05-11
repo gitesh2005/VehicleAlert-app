@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { auth } from '../src/config/firebase';
-import { registerVehicle, getUserVehicleCount } from '../src/services/vehicleService';
+import { registerVehicle, getUserVehicleCount, searchVehicle } from '../src/services/vehicleService';
 
 const VEHICLE_TYPES = [
   { id: 'Car', label: 'Car', emoji: '🚗' },
@@ -96,7 +96,21 @@ export default function RegisterVehicleScreen() {
 
     setLoading(true);
     try {
-      // Check vehicle limit
+      const cleanNumber = vehicleNumber.replace(/\s/g, '').toUpperCase();
+
+      // 1. Check for duplicate registration
+      const existingVehicle = await searchVehicle(cleanNumber);
+      if (existingVehicle) {
+        setLoading(false);
+        if (existingVehicle.userId === user.uid) {
+          Alert.alert('Already Registered', 'You have already registered this vehicle');
+        } else {
+          Alert.alert('Duplicate Vehicle', 'This vehicle is already registered on VehicleAlert');
+        }
+        return;
+      }
+
+      // 2. Check vehicle limit
       const vehicleCount = await getUserVehicleCount(user.uid);
       if (vehicleCount >= 3) {
         setLoading(false);
@@ -106,7 +120,7 @@ export default function RegisterVehicleScreen() {
 
       await registerVehicle(
         user.uid,
-        vehicleNumber.replace(/\s/g, '').toUpperCase(),
+        cleanNumber,
         vehicleType,
         vehicleModel,
         vehicleColor
