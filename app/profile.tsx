@@ -8,6 +8,7 @@ import {
   ScrollView,
   StatusBar,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,9 @@ export default function ProfileScreen() {
   const [receivedCount, setReceivedCount] = useState(0);
   const [resolvedCount, setResolvedCount] = useState(0);
 
+  const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([]);
+
+  // 1. Listen for user's vehicles
   useEffect(() => {
     const userId = auth().currentUser?.uid;
     if (!userId) {
@@ -38,53 +42,99 @@ export default function ProfileScreen() {
       return;
     }
 
-    // 1. Listen for user's vehicles
     const unsubscribeVehicles = db.collection('vehicles')
       .where('userId', '==', userId)
       .onSnapshot(snapshot => {
+        if (!snapshot) {
+          console.warn("Vehicles snapshot is null");
+          setLoading(false);
+          return;
+        }
         const vehicleList = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
         setVehicles(vehicleList);
+        setVehicleNumbers(vehicleList.map(v => v.vehicleNumber));
         setLoading(false);
-
-        const vehicleNumbers = vehicleList.map(v => v.vehicleNumber);
-        
-        // 2. Listen for received/resolved alerts (only if user has vehicles)
-        if (vehicleNumbers.length > 0) {
-          const unsubscribeReceived = db.collection('alerts')
-            .where('toVehicleNumber', 'in', vehicleNumbers)
-            .onSnapshot(alertSnapshot => {
-              const alerts = alertSnapshot.docs.map(doc => doc.data());
-              setReceivedCount(alerts.length);
-              setResolvedCount(alerts.filter(a => a.status === 'resolved').length);
-            });
-          
-          return () => unsubscribeReceived();
-        } else {
-          setReceivedCount(0);
-          setResolvedCount(0);
-        }
       }, error => {
         console.error("Vehicles listener error:", error);
         setLoading(false);
       });
 
-    // 3. Listen for sent alerts
+    return () => unsubscribeVehicles();
+  }, []);
+
+  const vehicleNumbersKey = vehicleNumbers.join(',');
+
+  // 2. Listen for received/resolved alerts
+  useEffect(() => {
+    if (vehicleNumbers.length === 0) {
+      setReceivedCount(0);
+      setResolvedCount(0);
+      return;
+    }
+
+    const unsubscribeReceived = db.collection('alerts')
+      .where('toVehicleNumber', 'in', vehicleNumbers)
+      .onSnapshot(alertSnapshot => {
+        if (!alertSnapshot) {
+          console.warn("Received alerts snapshot is null");
+          return;
+        }
+        const alerts = alertSnapshot.docs.map(doc => doc.data());
+        setReceivedCount(alerts.length);
+        setResolvedCount(alerts.filter(a => a.status === 'resolved').length);
+      }, error => {
+        console.error("Received alerts listener error:", error);
+      });
+
+    return () => unsubscribeReceived();
+  }, [vehicleNumbersKey]);
+
+  // 3. Listen for sent alerts
+  useEffect(() => {
+    const userId = auth().currentUser?.uid;
+    if (!userId) return;
+
     const unsubscribeSent = db.collection('alerts')
       .where('fromUserId', '==', userId)
       .onSnapshot(snapshot => {
+        if (!snapshot) {
+          console.warn("Sent alerts snapshot is null");
+          return;
+        }
         setSentCount(snapshot.size);
       }, error => {
         console.error("Sent alerts listener error:", error);
       });
 
-    return () => {
-      unsubscribeVehicles();
-      unsubscribeSent();
-    };
+    return () => unsubscribeSent();
   }, []);
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Logout", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await auth().signOut();
+              router.replace('/');
+              Alert.alert("Success", "Logged out successfully");
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Error", "Failed to logout. Please try again.");
+            }
+          } 
+        }
+      ]
+    );
+  };
 
   const stats = [
     { id: '1', count: sentCount.toString(), label: 'Alerts Sent' },
@@ -203,7 +253,7 @@ export default function ProfileScreen() {
             </View>
 
             {/* Logout Row */}
-            <TouchableOpacity style={styles.logoutRow} onPress={() => auth().signOut()}>
+            <TouchableOpacity style={styles.logoutRow} onPress={handleLogout}>
               <View style={styles.menuLeft}>
                 <View style={styles.logoutIconWrapper}>
                    <Ionicons name="log-out-outline" size={18} color="#f85149" />
