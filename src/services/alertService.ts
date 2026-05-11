@@ -56,6 +56,15 @@ export const markAlertAsRead = async (alertId: string) => {
   }
 };
 
+export const deleteAlert = async (alertId: string) => {
+  try {
+    await db.collection(ALERTS_COLLECTION).doc(alertId).delete();
+  } catch (error) {
+    console.error("Error deleting alert:", error);
+    throw error;
+  }
+};
+
 export const submitFalseReport = async (
   userId: string,
   vehicleNumber: string,

@@ -61,6 +61,15 @@ export const checkVehicleExists = async (vehicleNumber: string): Promise<boolean
   }
 };
 
+export const deleteVehicle = async (vehicleId: string) => {
+  try {
+    await db.collection(VEHICLES_COLLECTION).doc(vehicleId).delete();
+  } catch (error) {
+    console.error("Error deleting vehicle:", error);
+    throw error;
+  }
+};
+
 export const getUserVehicleCount = async (userId: string) => {
   try {
     const snapshot = await db.collection(VEHICLES_COLLECTION)

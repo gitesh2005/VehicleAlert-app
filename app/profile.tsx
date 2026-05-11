@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { db, auth } from '../src/config/firebase';
+import { deleteVehicle } from '../src/services/vehicleService';
 
 const VEHICLE_EMOJIS: Record<string, string> = {
   'Car': '🚗',
@@ -33,8 +34,38 @@ export default function ProfileScreen() {
   const [resolvedCount, setResolvedCount] = useState(0);
 
   const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([]);
+  const [trustScore, setTrustScore] = useState<number>(15);
 
-  // 1. Listen for user's vehicles
+  // 1. Listen for user data (Trust Score)
+  useEffect(() => {
+    const userId = auth().currentUser?.uid;
+    if (!userId) return;
+
+    const unsubscribeUser = db.collection('users').doc(userId)
+      .onSnapshot(doc => {
+        if (doc.exists) {
+          const score = doc.data()?.trustScore ?? 15;
+          
+          // Warning notifications
+          if (score === 10 && trustScore > 10) {
+            Alert.alert("⚠️ Warning", "Your trust score is dropping. Please avoid sending false alerts.");
+          } else if (score === 5 && trustScore > 5) {
+            Alert.alert("🔴 Danger", "Your trust score is critically low. Account may be blocked soon!");
+          } else if (score === 0) {
+            router.replace('/account-blocked');
+            return;
+          }
+          
+          setTrustScore(score);
+        }
+      }, error => {
+        console.error("User data listener error:", error);
+      });
+
+    return () => unsubscribeUser();
+  }, [trustScore]);
+
+  // 2. Listen for user's vehicles
   useEffect(() => {
     const userId = auth().currentUser?.uid;
     if (!userId) {
@@ -136,6 +167,29 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleDeleteVehicle = (vehicleId: string, vehicleNumber: string) => {
+    Alert.alert(
+      "Remove Vehicle",
+      `Are you sure you want to remove ${vehicleNumber} from VehicleAlert?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Remove", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await deleteVehicle(vehicleId);
+              Alert.alert("Success", "Vehicle removed successfully");
+            } catch (error) {
+              console.error("Delete vehicle error:", error);
+              Alert.alert("Error", "Failed to remove vehicle. Please try again.");
+            }
+          } 
+        }
+      ]
+    );
+  };
+
   const stats = [
     { id: '1', count: sentCount.toString(), label: 'Alerts Sent' },
     { id: '2', count: receivedCount.toString(), label: 'Received' },
@@ -148,6 +202,14 @@ export default function ProfileScreen() {
     { id: '3', emoji: '🛡️', label: 'Account Status', route: '/account-blocked' },
     { id: '4', emoji: '❓', label: 'Help & Support' },
   ];
+
+  const getAccountStatus = (score: number) => {
+    if (score >= 11) return { label: 'Active', color: '#34C759', bg: 'rgba(52, 199, 89, 0.1)' };
+    if (score >= 6) return { label: 'Warning', color: '#FFCC00', bg: 'rgba(255, 204, 0, 0.1)' };
+    return { label: 'At Risk', color: '#FF3B30', bg: 'rgba(255, 59, 48, 0.1)' };
+  };
+
+  const status = getAccountStatus(trustScore);
 
   return (
     <View style={styles.container}>
@@ -174,6 +236,33 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
+            {/* Account Status Card */}
+            <View style={styles.section}>
+              <Text style={styles.sectionHeading}>Account Status</Text>
+              <View style={styles.statusCard}>
+                <View style={styles.statusHeader}>
+                  <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+                    <View style={[styles.statusDotSmall, { backgroundColor: status.color }]} />
+                    <Text style={[styles.statusLabelBadge, { color: status.color }]}>{status.label}</Text>
+                  </View>
+                  <Text style={styles.trustScoreText}>Trust Score: {trustScore}/15</Text>
+                </View>
+                
+                <View style={styles.progressBarContainer}>
+                  <View 
+                    style={[
+                      styles.progressBarFill, 
+                      { 
+                        width: `${(trustScore / 15) * 100}%`,
+                        backgroundColor: status.color 
+                      }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.resetText}>Score resets every midnight 🕛</Text>
+              </View>
+            </View>
+
             {/* Registered Vehicles Section */}
             <View style={styles.section}>
               <Text style={styles.sectionHeading}>My Registered Vehicles</Text>
@@ -191,11 +280,24 @@ export default function ProfileScreen() {
                           <Text style={styles.vehicleEmoji}>
                             {VEHICLE_EMOJIS[vehicle.vehicleType] || '🚗'}
                           </Text>
-                          <Text style={styles.vehiclePlate}>
-                            {vehicle.vehicleNumber} • {vehicle.isActive ? 'Active' : 'Inactive'}
-                          </Text>
+                          <View>
+                            <Text style={styles.vehiclePlate}>
+                              {vehicle.vehicleNumber}
+                            </Text>
+                            <Text style={styles.vehicleStatus}>
+                              {vehicle.isActive ? 'Active' : 'Inactive'}
+                            </Text>
+                          </View>
                         </View>
-                        {vehicle.isActive && <View style={styles.activeDot} />}
+                        <View style={styles.vehicleRight}>
+                          {vehicle.isActive && <View style={styles.activeDot} />}
+                          <TouchableOpacity 
+                            style={styles.deleteVehicleButton}
+                            onPress={() => handleDeleteVehicle(vehicle.id, vehicle.vehicleNumber)}
+                          >
+                            <Ionicons name="trash-outline" size={20} color="#f85149" />
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     ))
                   ) : (
@@ -375,13 +477,29 @@ const styles = StyleSheet.create({
   vehiclePlate: {
     color: 'white',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: 'bold',
+  },
+  vehicleStatus: {
+    color: '#8b949e',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  vehicleRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deleteVehicleButton: {
+    marginLeft: 16,
+    padding: 8,
+    backgroundColor: 'rgba(248, 81, 73, 0.1)',
+    borderRadius: 8,
   },
   activeDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#34C759',
+    marginRight: 8,
   },
   addVehicleButton: {
     width: '100%',
@@ -489,5 +607,57 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 4,
     fontWeight: '500',
+  },
+  statusCard: {
+    backgroundColor: '#161b22',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#30363d',
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 8,
+  },
+  statusLabelBadge: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  trustScoreText: {
+    color: '#8b949e',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: '#30363d',
+    borderRadius: 4,
+    width: '100%',
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  resetText: {
+    color: '#8b949e',
+    fontSize: 10,
+    textAlign: 'center',
   },
 });

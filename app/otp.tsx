@@ -100,7 +100,23 @@ export default function OTPScreen() {
     } catch (err: any) {
       setLoading(false);
       console.error('OTP Error:', err);
-      Alert.alert('Verification Failed', err.message || 'The OTP entered is incorrect.');
+      
+      if (err.code === 'auth/invalid-verification-code') {
+        Alert.alert(
+          'Invalid OTP',
+          'The verification code you entered is incorrect. Please check and try again.',
+          [{ text: 'OK', onPress: () => setOtp(['', '', '', '', '', '']) }]
+        );
+        inputRefs.current[0]?.focus();
+      } else if (err.code === 'auth/session-expired') {
+        Alert.alert(
+          'Session Expired',
+          'The verification session has expired. Please request a new OTP.',
+          [{ text: 'Go Back', onPress: () => router.back() }]
+        );
+      } else {
+        Alert.alert('Verification Failed', err.message || 'The OTP entered is incorrect.');
+      }
     }
   };
 

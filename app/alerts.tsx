@@ -8,12 +8,12 @@ import {
   ScrollView,
   StatusBar,
   ActivityIndicator,
-  RefreshControl,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { db, auth } from '../src/config/firebase';
-import { getMyAlerts, markAlertAsRead } from '../src/services/alertService';
+import { deleteAlert, markAlertAsRead } from '../src/services/alertService';
 
 const ALERT_META: Record<string, { emoji: string, color: string }> = {
   'Wrong Parking': { emoji: '🅿️', color: '#FF9500' },
@@ -26,25 +26,105 @@ export default function AlertsScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'Received' | 'Sent'>('Received');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [receivedAlerts, setReceivedAlerts] = useState<any[]>([]);
   const [sentAlerts, setSentAlerts] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    const userId = auth().currentUser?.uid;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    let unsubscribeReceived: () => void = () => {};
+    let unsubscribeSent: () => void = () => {};
+
+    // 1. Fetch user's vehicles first to listen for received alerts
+    const fetchVehiclesAndListen = async () => {
+      try {
+        const vehiclesSnapshot = await db.collection('vehicles')
+          .where('userId', '==', userId)
+          .get();
+        
+        const myVehicleNumbers = vehiclesSnapshot.docs
+          .map(doc => doc.data().vehicleNumber)
+          .filter(Boolean); // Ensure no empty values
+
+        if (myVehicleNumbers.length > 0) {
+          unsubscribeReceived = db.collection('alerts')
+            .where('toVehicleNumber', 'in', myVehicleNumbers)
+            .onSnapshot(snapshot => {
+              if (snapshot) {
+                const alerts = snapshot.docs.map(doc => ({
+                  id: doc.id,
+                  ...doc.data()
+                }));
+                setReceivedAlerts(sortAlerts(alerts));
+                setError(null);
+              }
+              setLoading(false);
+            }, err => {
+              console.error("Received alerts listener error:", err);
+              if (err.message?.includes('permission-denied')) {
+                setError("Permission denied. Please check your Firestore rules.");
+              } else {
+                setError("Failed to load received alerts.");
+              }
+              setLoading(false);
+            });
+        } else {
+          setReceivedAlerts([]);
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error("Error fetching vehicles for alerts:", err);
+        setError("Failed to fetch vehicle information.");
+        setLoading(false);
+      }
+    };
+
+    // 2. Listen for sent alerts
+    unsubscribeSent = db.collection('alerts')
+      .where('fromUserId', '==', userId)
+      .orderBy('sentAt', 'desc')
+      .limit(20)
+      .onSnapshot(snapshot => {
+        if (snapshot) {
+          const alerts = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setSentAlerts(alerts);
+        }
+      }, err => {
+        // If index is missing, fallback to client-side sorting
+        if (err.message?.includes('requires an index')) {
+          console.warn("Sent alerts index missing, falling back to client-side sort");
+          db.collection('alerts')
+            .where('fromUserId', '==', userId)
+            .limit(20)
+            .onSnapshot(snapshot => {
+              if (snapshot) {
+                const alerts = snapshot.docs.map(doc => ({
+                  id: doc.id,
+                  ...doc.data()
+                }));
+                setSentAlerts(sortAlerts(alerts));
+              }
+            });
+        } else {
+          console.error("Sent alerts listener error:", err);
+        }
+      });
+
+    fetchVehiclesAndListen();
+
+    return () => {
+      unsubscribeReceived();
+      unsubscribeSent();
+    };
   }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    await Promise.all([fetchReceivedAlerts(), fetchSentAlerts()]);
-    setLoading(false);
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([fetchReceivedAlerts(), fetchSentAlerts()]);
-    setRefreshing(false);
-  };
 
   const sortAlerts = (alerts: any[]) => {
     return [...alerts].sort((a, b) => {
@@ -54,57 +134,47 @@ export default function AlertsScreen() {
     });
   };
 
-  const fetchReceivedAlerts = async () => {
-    const userId = auth().currentUser?.uid;
-    if (!userId) return;
-
-    try {
-      const vehiclesSnapshot = await db.collection('vehicles')
-        .where('userId', '==', userId)
-        .get();
-      
-      const myVehicleNumbers = vehiclesSnapshot.docs.map(doc => doc.data().vehicleNumber);
-
-      if (myVehicleNumbers.length === 0) {
-        setReceivedAlerts([]);
-        return;
+  const handleReceivedAlertPress = async (alert: any) => {
+    // 1. Mark as read first
+    if (!alert.isRead) {
+      try {
+        await markAlertAsRead(alert.id);
+      } catch (error) {
+        console.error("Error marking as read:", error);
       }
-
-      const alerts = await getMyAlerts(myVehicleNumbers);
-      setReceivedAlerts(sortAlerts(alerts));
-    } catch (error) {
-      console.error("Error fetching received alerts:", error);
     }
+
+    // 2. Redirect to false report screen
+    router.push({
+      pathname: '/report-false-alert',
+      params: {
+        alertId: alert.id,
+        vehicleNumber: alert.toVehicleNumber,
+        alertType: alert.alertType
+      }
+    });
   };
 
-  const fetchSentAlerts = async () => {
-    const userId = auth().currentUser?.uid;
-    if (!userId) return;
-
-    try {
-      const querySnapshot = await db.collection('alerts')
-        .where('fromUserId', '==', userId)
-        .get();
-      
-      const alerts = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setSentAlerts(sortAlerts(alerts));
-    } catch (error) {
-      console.error("Error fetching sent alerts:", error);
-    }
-  };
-
-  const handleMarkAsRead = async (alertId: string, isRead: boolean) => {
-    if (isRead || activeTab === 'Sent') return;
-
-    try {
-      await markAlertAsRead(alertId);
-      setReceivedAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isRead: true } : a));
-    } catch (error) {
-      console.error("Error marking as read:", error);
-    }
+  const handleDeleteAlert = (alertId: string) => {
+    Alert.alert(
+      "Delete Alert",
+      "Are you sure you want to delete this alert? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await deleteAlert(alertId);
+            } catch (error) {
+              console.error("Error deleting alert:", error);
+              Alert.alert("Error", "Failed to delete alert");
+            }
+          }
+        }
+      ]
+    );
   };
 
   const timeAgo = (timestamp: any) => {
@@ -159,7 +229,7 @@ export default function AlertsScreen() {
           </TouchableOpacity>
         </View>
 
-        {loading && !refreshing ? (
+        {loading ? (
           <View style={styles.loaderContainer}>
             <ActivityIndicator size="large" color="#007AFF" />
           </View>
@@ -167,18 +237,29 @@ export default function AlertsScreen() {
           <ScrollView 
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#007AFF" />
-            }
           >
-            {alerts.length > 0 ? (
+            {error ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="alert-circle-outline" size={48} color="#FF4444" />
+                <Text style={[styles.emptyText, { color: '#FF4444', marginTop: 16 }]}>{error}</Text>
+                <TouchableOpacity 
+                    style={styles.retryButton}
+                    onPress={() => router.replace('/alerts')}
+                >
+                    <Text style={styles.retryText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : alerts.length > 0 ? (
               alerts.map((alert) => {
                 const meta = ALERT_META[alert.alertType] || { emoji: '🚨', color: '#8E8E93' };
+                const isSentByMe = activeTab === 'Sent';
+                
                 return (
                   <TouchableOpacity 
                     key={alert.id} 
                     style={styles.alertCard}
-                    onPress={() => handleMarkAsRead(alert.id, alert.isRead)}
+                    onPress={() => !isSentByMe && handleReceivedAlertPress(alert)}
+                    onLongPress={() => isSentByMe && handleDeleteAlert(alert.id)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.alertLeft}>
@@ -186,19 +267,38 @@ export default function AlertsScreen() {
                       <View style={styles.alertInfo}>
                         <Text style={styles.alertTitle}>{alert.alertType}</Text>
                         <Text style={styles.alertDesc}>{alert.toVehicleNumber}</Text>
-                        <Text style={styles.alertTime}>{timeAgo(alert.sentAt)}</Text>
+                        <View style={styles.alertFooter}>
+                          <Text style={styles.alertTime}>{timeAgo(alert.sentAt)}</Text>
+                          {isSentByMe && (
+                            <Text style={styles.alertStatus}>
+                               • {alert.status === 'sent' ? 'Delivered ✅' : 'Pending ⏳'}
+                            </Text>
+                          )}
+                        </View>
                       </View>
                     </View>
-                    {activeTab === 'Received' && !alert.isRead && (
+                    
+                    {!isSentByMe && !alert.isRead && (
                       <View style={[styles.statusDot, { backgroundColor: '#007AFF' }]} />
+                    )}
+                    
+                    {isSentByMe && (
+                      <TouchableOpacity 
+                        style={styles.deleteButton}
+                        onPress={() => handleDeleteAlert(alert.id)}
+                      >
+                        <Ionicons name="trash-outline" size={20} color="#FF4444" />
+                      </TouchableOpacity>
                     )}
                   </TouchableOpacity>
                 );
               })
             ) : (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyEmoji}>🎉</Text>
-                <Text style={styles.emptyText}>No alerts yet</Text>
+                <Text style={styles.emptyEmoji}>{activeTab === 'Received' ? '🎉' : '📢'}</Text>
+                <Text style={styles.emptyText}>
+                  {activeTab === 'Received' ? 'No alerts yet' : 'No alerts sent yet'}
+                </Text>
               </View>
             )}
           </ScrollView>
@@ -317,15 +417,28 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     marginBottom: 4,
   },
+  alertFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   alertTime: {
     fontSize: 11,
     color: '#636366',
+  },
+  alertStatus: {
+    fontSize: 11,
+    color: '#00FF7F',
+    marginLeft: 6,
   },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     marginLeft: 12,
+  },
+  deleteButton: {
+    padding: 8,
+    marginLeft: 8,
   },
   emptyContainer: {
     flex: 1,
@@ -340,6 +453,21 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#8E8E93',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+  },
+  retryText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   bottomNav: {
     position: 'absolute',
@@ -367,3 +495,4 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
