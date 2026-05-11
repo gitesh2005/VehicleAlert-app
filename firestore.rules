@@ -1,0 +1,48 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Users: Owner has full access, others can only touch trustScore/updatedAt
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && (
+        request.auth.uid == userId || 
+        request.resource.data.keys().hasOnly(['trustScore', 'updatedAt'])
+      );
+      allow update: if request.auth != null && (
+        request.auth.uid == userId || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trustScore', 'updatedAt'])
+      );
+    }
+
+    // 2. Vehicles: Anyone can search, but only owner can manage
+    match /vehicles/{vehicleId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // 3. Alerts: Only recipient or sender can see/edit
+    match /alerts/{alertId} {
+      allow read: if request.auth != null && (
+        resource.data.get('toUserId', null) == null || // Allow read if not yet assigned to a user
+        resource.data.toUserId == request.auth.uid ||
+        resource.data.fromUserId == request.auth.uid
+      );
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (
+        resource.data.get('toUserId', null) == null || // Allow update if not yet assigned to a user
+        resource.data.toUserId == request.auth.uid ||
+        resource.data.fromUserId == request.auth.uid
+      );
+      allow delete: if request.auth != null && resource.data.fromUserId == request.auth.uid;
+    }
+
+    // 4. Reports: Anyone can submit
+    match /reports/{reportId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
+    }
+  }
+}

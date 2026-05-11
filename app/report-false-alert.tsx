@@ -15,7 +15,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth } from '../src/config/firebase';
-import { submitFalseReport, getUserFalseReportCount } from '../src/services/alertService';
+import { submitFalseReport } from '../src/services/alertService';
 
 const REASONS = [
   { id: '1', label: 'My vehicle was parked correctly' },
@@ -27,10 +27,11 @@ const REASONS = [
 
 export default function ReportFalseAlertScreen() {
   const router = useRouter();
-  const { alertId, vehicleNumber, alertType } = useLocalSearchParams<{ 
-    alertId: string, 
-    vehicleNumber: string, 
-    alertType: string 
+
+  const { alertId, vehicleNumber, alertType } = useLocalSearchParams<{
+    alertId: string;
+    vehicleNumber: string;
+    alertType: string;
   }>();
 
   const [selectedReason, setSelectedReason] = useState('3');
@@ -44,38 +45,30 @@ export default function ReportFalseAlertScreen() {
     }
 
     setLoading(true);
+
     const userId = auth().currentUser?.uid || 'anonymous';
 
     try {
-      // 1. Submit the report
       await submitFalseReport(
         userId,
         vehicleNumber,
         alertId,
-        REASONS.find(r => r.id === selectedReason)?.label || 'Other',
+        REASONS.find((reason) => reason.id === selectedReason)?.label || 'Other',
         details
       );
 
-      // 2. Check user's total false reports
-      const reportCount = await getUserFalseReportCount(userId);
-      
       setLoading(false);
+
       Alert.alert(
         "Success",
         "✅ Report submitted successfully!",
-        [{ text: "OK" }]
+        [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]
       );
-
-      if (reportCount >= 10) {
-        setTimeout(() => {
-          router.replace('/account-blocked');
-        }, 1000);
-      } else {
-        setTimeout(() => {
-          router.back();
-        }, 1000);
-      }
-
     } catch (error) {
       setLoading(false);
       console.error("Report error:", error);
@@ -86,6 +79,7 @@ export default function ReportFalseAlertScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
+
       <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
         <LinearGradient
           colors={['#8B0000', '#0D0F14']}
@@ -93,12 +87,13 @@ export default function ReportFalseAlertScreen() {
         >
           <SafeAreaView style={styles.safeArea}>
             <View style={styles.headerContent}>
-              <TouchableOpacity 
-                onPress={() => router.back()} 
+              <TouchableOpacity
+                onPress={() => router.back()}
                 style={styles.backButton}
               >
                 <Ionicons name="arrow-back" size={24} color="white" />
               </TouchableOpacity>
+
               <Text style={styles.heading}>Report False Alert</Text>
               <Text style={styles.subtitle}>Help us keep the community safe</Text>
             </View>
@@ -120,10 +115,11 @@ export default function ReportFalseAlertScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Why is this alert wrong?</Text>
-          
+
           <View style={styles.reasonsContainer}>
             {REASONS.map((reason) => {
               const isSelected = selectedReason === reason.id;
+
               return (
                 <TouchableOpacity
                   key={reason.id}
@@ -134,10 +130,13 @@ export default function ReportFalseAlertScreen() {
                   onPress={() => setSelectedReason(reason.id)}
                 >
                   <Text style={styles.reasonLabel}>{reason.label}</Text>
-                  <View style={[
-                    styles.radioCircle,
-                    isSelected && styles.radioCircleSelected
-                  ]}>
+
+                  <View
+                    style={[
+                      styles.radioCircle,
+                      isSelected && styles.radioCircleSelected,
+                    ]}
+                  >
                     {isSelected && <View style={styles.radioInnerCircle} />}
                   </View>
                 </TouchableOpacity>
@@ -146,6 +145,7 @@ export default function ReportFalseAlertScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Additional details (optional)</Text>
+
           <TextInput
             style={styles.textarea}
             placeholder="Describe what actually happened..."
@@ -157,7 +157,7 @@ export default function ReportFalseAlertScreen() {
             onChangeText={setDetails}
           />
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.submitButton, loading && styles.disabledButton]}
             onPress={handleSubmit}
             disabled={loading}

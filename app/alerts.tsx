@@ -40,48 +40,29 @@ export default function AlertsScreen() {
     let unsubscribeReceived: () => void = () => {};
     let unsubscribeSent: () => void = () => {};
 
-    // 1. Fetch user's vehicles first to listen for received alerts
-    const fetchVehiclesAndListen = async () => {
-      try {
-        const vehiclesSnapshot = await db.collection('vehicles')
-          .where('userId', '==', userId)
-          .get();
-        
-        const myVehicleNumbers = vehiclesSnapshot.docs
-          .map(doc => doc.data().vehicleNumber)
-          .filter(Boolean); // Ensure no empty values
-
-        if (myVehicleNumbers.length > 0) {
-          unsubscribeReceived = db.collection('alerts')
-            .where('toVehicleNumber', 'in', myVehicleNumbers)
-            .onSnapshot(snapshot => {
-              if (snapshot) {
-                const alerts = snapshot.docs.map(doc => ({
-                  id: doc.id,
-                  ...doc.data()
-                }));
-                setReceivedAlerts(sortAlerts(alerts));
-                setError(null);
-              }
-              setLoading(false);
-            }, err => {
-              console.error("Received alerts listener error:", err);
-              if (err.message?.includes('permission-denied')) {
-                setError("Permission denied. Please check your Firestore rules.");
-              } else {
-                setError("Failed to load received alerts.");
-              }
-              setLoading(false);
-            });
-        } else {
-          setReceivedAlerts([]);
+    // 1. Listen for received alerts
+    const listenToReceivedAlerts = () => {
+      unsubscribeReceived = db.collection('alerts')
+        .where('toUserId', '==', userId)
+        .onSnapshot(snapshot => {
+          if (snapshot) {
+            const alerts = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            setReceivedAlerts(sortAlerts(alerts));
+            setError(null);
+          }
           setLoading(false);
-        }
-      } catch (err: any) {
-        console.error("Error fetching vehicles for alerts:", err);
-        setError("Failed to fetch vehicle information.");
-        setLoading(false);
-      }
+        }, err => {
+          console.error("Received alerts listener error:", err);
+          if (err.message?.includes('permission-denied')) {
+            setError("Permission denied. Please check your Firestore rules.");
+          } else {
+            setError("Failed to load received alerts.");
+          }
+          setLoading(false);
+        });
     };
 
     // 2. Listen for sent alerts
@@ -118,7 +99,7 @@ export default function AlertsScreen() {
         }
       });
 
-    fetchVehiclesAndListen();
+    listenToReceivedAlerts();
 
     return () => {
       unsubscribeReceived();

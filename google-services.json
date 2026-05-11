@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1066456039416",
+    "project_id": "vehiclealert-7165b",
+    "storage_bucket": "vehiclealert-7165b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1066456039416:android:218b4e0b3c4ed2294b600d",
+        "android_client_info": {
+          "package_name": "com.gitesh005.VehicleAlertApp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOe1JFOk_J6ZsQF3x6LsYyPr_TwV1dZQs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

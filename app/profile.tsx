@@ -100,14 +100,11 @@ export default function ProfileScreen() {
 
   // 2. Listen for received/resolved alerts
   useEffect(() => {
-    if (vehicleNumbers.length === 0) {
-      setReceivedCount(0);
-      setResolvedCount(0);
-      return;
-    }
+    const userId = auth().currentUser?.uid;
+    if (!userId) return;
 
     const unsubscribeReceived = db.collection('alerts')
-      .where('toVehicleNumber', 'in', vehicleNumbers)
+      .where('toUserId', '==', userId)
       .onSnapshot(alertSnapshot => {
         if (!alertSnapshot) {
           console.warn("Received alerts snapshot is null");
@@ -121,7 +118,7 @@ export default function ProfileScreen() {
       });
 
     return () => unsubscribeReceived();
-  }, [vehicleNumbersKey]);
+  }, []);
 
   // 3. Listen for sent alerts
   useEffect(() => {
@@ -487,19 +484,24 @@ const styles = StyleSheet.create({
   vehicleRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   deleteVehicleButton: {
-    marginLeft: 16,
-    padding: 8,
+    marginLeft: 12,
+    padding: 10,
     backgroundColor: 'rgba(248, 81, 73, 0.1)',
     borderRadius: 8,
   },
   activeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#34C759',
-    marginRight: 8,
+    marginRight: 4,
+    shadowColor: '#34C759',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
   },
   addVehicleButton: {
     width: '100%',

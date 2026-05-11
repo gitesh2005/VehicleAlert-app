@@ -54,10 +54,10 @@ export default function LoginScreen() {
       setLoading(false);
       console.error('Firebase Auth Error:', err);
 
-      if (err.code === 'auth/billing-not-enabled' || err.message?.includes('BILLING_NOT_ENABLED')) {
+      if (err.code === 'auth/billing-not-enabled' || err.code === 'auth/billing-not' || err.message?.includes('BILLING_NOT_ENABLED')) {
         Alert.alert(
-          '🔒 Testing Mode Active',
-          'Real OTP is not available yet.\n\nPlease use the test number added in Firebase Console to login.',
+          '🔒 Firebase Billing Required',
+          'Real OTP service requires a Firebase Blaze plan.\n\nPlease use a test phone number configured in your Firebase Console, or enable billing to use real numbers.',
           [{ text: 'OK', style: 'default' }]
         );
       } else if (err.code === 'auth/invalid-phone-number') {

@@ -50,22 +50,9 @@ export default function HomeScreen() {
     }
 
     try {
-      // 1. Get user's vehicles
-      const vehiclesSnapshot = await db.collection('vehicles')
-        .where('userId', '==', userId)
-        .get();
-      
-      const myVehicleNumbers = vehiclesSnapshot.docs.map(doc => doc.data().vehicleNumber);
-
-      if (myVehicleNumbers.length === 0) {
-        setActivities([]);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Get last 3 alerts (Sort client-side to avoid index error)
+      // Get last 3 alerts (Sort client-side to avoid index error)
       const alertsSnapshot = await db.collection('alerts')
-        .where('toVehicleNumber', 'in', myVehicleNumbers)
+        .where('toUserId', '==', userId)
         .get();
       
       const allAlerts = alertsSnapshot.docs.map(doc => ({
