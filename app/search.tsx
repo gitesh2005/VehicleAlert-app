@@ -93,7 +93,7 @@ export default function SearchScreen() {
               disabled={loading}
             >
               <LinearGradient
-                colors={['#007AFF', '#0055FF']}
+                colors={['#bbc8d5', '#0055FF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.gradientButton}
