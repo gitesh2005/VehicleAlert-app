@@ -14,7 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { searchVehicle } from '../src/services/vehicleService';
+import { searchVehicle } from '@/src/services/vehicleService';
 
 export default function SearchScreen() {
   const router = useRouter();

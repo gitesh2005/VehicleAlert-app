@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { sendAlert, getUserDailyAlertCount } from '../src/services/alertService';
-import { auth } from '../src/config/firebase';
+import { sendAlert, getUserDailyAlertCount } from '@/src/services/alertService';
+import { auth } from '@/src/config/firebase';
 
 export default function SendAlertScreen() {
   const router = useRouter();

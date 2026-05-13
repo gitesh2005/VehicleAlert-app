@@ -14,8 +14,8 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { auth } from '../src/config/firebase';
-import { submitFalseReport } from '../src/services/alertService';
+import { auth } from '@/src/config/firebase';
+import { submitFalseReport } from '@/src/services/alertService';
 
 const REASONS = [
   { id: '1', label: 'My vehicle was parked correctly' },

@@ -14,8 +14,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { auth } from '../src/config/firebase';
-import { registerVehicle, getUserVehicleCount, searchVehicle } from '../src/services/vehicleService';
+import { auth } from '@/src/config/firebase';
+import { registerVehicle, getUserVehicleCount, searchVehicle } from '@/src/services/vehicleService';
 
 const VEHICLE_TYPES = [
   { id: 'Car', label: 'Car', emoji: '🚗' },

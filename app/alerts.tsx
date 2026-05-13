@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { db, auth } from '../src/config/firebase';
-import { deleteAlert, markAlertAsRead } from '../src/services/alertService';
+import { db, auth } from '@/src/config/firebase';
+import { deleteAlert, markAlertAsRead } from '@/src/services/alertService';
 
 const ALERT_META: Record<string, { emoji: string, color: string }> = {
   'Wrong Parking': { emoji: '🅿️', color: '#FF9500' },

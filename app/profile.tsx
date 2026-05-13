@@ -13,8 +13,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { db, auth } from '../src/config/firebase';
-import { deleteVehicle } from '../src/services/vehicleService';
+import { db, auth } from '@/src/config/firebase';
+import { deleteVehicle } from '@/src/services/vehicleService';
 
 const VEHICLE_EMOJIS: Record<string, string> = {
   'Car': '🚗',

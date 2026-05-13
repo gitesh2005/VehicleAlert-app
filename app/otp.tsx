@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { getConfirmationResult } from '../src/config/firebase';
+import { getConfirmationResult } from '@/src/config/firebase';
 
 export default function OTPScreen() {
   const router = useRouter();

@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { auth, setConfirmationResult } from '../src/config/firebase';
+import { auth, setConfirmationResult } from '@/src/config/firebase';
 
 export default function LoginScreen() {
   const router = useRouter();
