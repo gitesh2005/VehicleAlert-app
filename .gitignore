@@ -2,7 +2,6 @@
 
 # Firebase
 GoogleService-Info.plist
-src/config/firebase.ts
 
 
 # Environment variables
