@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { db, auth } from '../src/config/firebase';
+import { db, auth } from '@/src/config/firebase';
 
 const { width } = Dimensions.get('window');
 
