@@ -14,7 +14,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { auth, setConfirmationResult } from '@/src/config/firebase';
+import { auth, db, setConfirmationResult } from '@/src/config/firebase';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import firestore from '@react-native-firebase/firestore';
+
+GoogleSignin.configure({
+  webClientId: '1066456039416-p7kr89h590n7r7gme438tpmlic8nd4ja.apps.googleusercontent.com',
+});
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -28,6 +34,55 @@ export default function LoginScreen() {
       setPhoneNumber(cleaned);
       if (cleaned.length === 10) {
         setError('');
+      }
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      
+      const idToken = userInfo.data?.idToken;
+      if (!idToken) {
+        throw new Error('No ID token found');
+      }
+
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      const userCredential = await auth().signInWithCredential(googleCredential);
+      
+      const { user } = userCredential;
+      
+      // Save user to Firestore if it's the first time
+      const userRef = db.collection('users').doc(user.uid);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        await userRef.set({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          phoneNumber: user.phoneNumber,
+          authProvider: 'google',
+          lastLogin: firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        await userRef.update({
+          lastLogin: firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      setLoading(false);
+      router.replace('/welcome');
+    } catch (err: any) {
+      setLoading(false);
+      console.error('Google Sign In Error:', err);
+      // Only show alert if it's not a cancellation
+      if (err.code !== 'SIGN_IN_CANCELLED' && err.code !== 'ASYNC_OP_IN_PROGRESS') {
+        Alert.alert('Error', 'Google Sign In failed');
       }
     }
   };
@@ -132,9 +187,16 @@ export default function LoginScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity activeOpacity={0.8} style={styles.googleButton}>
+          <TouchableOpacity 
+            activeOpacity={0.8} 
+            style={[styles.googleButton, loading && { opacity: 0.7 }]}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+          >
             <Ionicons name="logo-google" size={20} color="white" style={styles.googleIcon} />
-            <Text style={styles.googleButtonText}>Continue with Google</Text>
+            <Text style={styles.googleButtonText}>
+              {loading && !phoneNumber ? 'Connecting...' : 'Continue with Google'}
+            </Text>
           </TouchableOpacity>
         </View>
 

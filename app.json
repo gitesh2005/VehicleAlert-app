@@ -11,7 +11,7 @@
     },
     "scheme": "vehiclealertapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -34,6 +34,9 @@
     "plugins": [
       "expo-router",
       "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      "expo-notifications",
+      "./scripts/ar-optional-plugin.js",
       [
         "expo-splash-screen",
         {
@@ -45,7 +48,8 @@
             "backgroundColor": "#0D0F14"
           }
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -54,8 +58,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ef493932-013d-40bc-92cb-90358d358658"
+        "projectId": "4ab7d3c7-d51a-4d5a-bf25-f1e14c14d9ab"
       }
-    }
+    },
+    "owner": "gitesh2005"
   }
 }
