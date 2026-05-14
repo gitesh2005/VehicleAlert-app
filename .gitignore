@@ -2,8 +2,7 @@
 
 # Firebase
 GoogleService-Info.plist
-
-
+google-services.json
 # Environment variables
 .env
 .env.local
