@@ -16,7 +16,7 @@ import { db, auth } from '@/src/config/firebase';
 import { deleteAlert, markAlertAsRead } from '@/src/services/alertService';
 
 const ALERT_META: Record<string, { emoji: string, color: string }> = {
-  'Wrong Parking': { emoji: '🅿️', color: '#FF9500' },
+  'Wrong Parking': { emoji: '🅿️', color: '#FF9501' },
   'Lights Left On': { emoji: '💡', color: '#FFCC00' },
   'Reckless Driving': { emoji: '🚨', color: '#FF4444' },
   'Vehicle Issue': { emoji: '🔧', color: '#007AFF' },
