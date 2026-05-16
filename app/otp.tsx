@@ -15,7 +15,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { getConfirmationResult } from '@/src/config/firebase';
+import { db, getConfirmationResult } from '@/src/config/firebase';
+import firestore from '@react-native-firebase/firestore';
 
 export default function OTPScreen() {
   const router = useRouter();
@@ -92,7 +93,29 @@ export default function OTPScreen() {
         throw new Error('Verification session expired. Please go back and try again.');
       }
 
-      await confirmation.confirm(code);
+      const userCredential = await confirmation.confirm(code);
+      const user = userCredential.user;
+
+      if (user) {
+        // Save user to Firestore if it's the first time or update lastLogin
+        const userRef = db.collection('users').doc(user.uid);
+        const userDoc = await userRef.get();
+        
+        if (!userDoc.exists) {
+          await userRef.set({
+            uid: user.uid,
+            phoneNumber: user.phoneNumber,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+            authProvider: 'phone',
+            lastLogin: firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          await userRef.update({
+            lastLogin: firestore.FieldValue.serverTimestamp(),
+            phoneNumber: user.phoneNumber || userDoc.data()?.phoneNumber,
+          });
+        }
+      }
 
       setLoading(false);
       console.log('✅ OTP Verification Success');

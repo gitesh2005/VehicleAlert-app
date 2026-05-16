@@ -14,7 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { searchVehicle } from '@/src/services/vehicleService';
+import { searchVehicle, searchVehiclesByPhoneNumber } from '@/src/services/vehicleService';
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -25,7 +25,7 @@ export default function SearchScreen() {
 
   const handleSearch = async () => {
     if (searchQuery.length === 0) {
-      Alert.alert('Error', 'Please enter a vehicle number');
+      Alert.alert('Error', 'Please enter a vehicle number or phone number');
       return;
     }
 
@@ -34,12 +34,24 @@ export default function SearchScreen() {
     setVehicleData(null);
 
     try {
-      const data = await searchVehicle(searchQuery);
+      let data = null;
+      
+      // If search query is exactly 10 digits, try searching by phone number first
+      if (/^\d{10}$/.test(searchQuery)) {
+        console.log("Query looks like a phone number, searching users...");
+        data = await searchVehiclesByPhoneNumber(searchQuery);
+      }
+      
+      // If no data found via phone number, or it's not a phone number, search by vehicle number
+      if (!data) {
+        data = await searchVehicle(searchQuery);
+      }
+      
       setVehicleData(data);
       setSearchAttempted(true);
     } catch (error) {
       console.error("Search error:", error);
-      Alert.alert('Error', 'Failed to search vehicle. Please try again.');
+      Alert.alert('Error', 'Failed to search. Please try again.');
     } finally {
       setLoading(false);
     }

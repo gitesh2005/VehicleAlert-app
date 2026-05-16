@@ -395,7 +395,7 @@ export default function RegisterVehicleScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Verify Email 📧</Text>
             <Text style={styles.modalSubtitle}>
-              We've sent a 6-digit OTP to{'\n'}
+              We&apos;ve sent a 6-digit OTP to{'\n'}
               <Text style={{ fontWeight: 'bold', color: '#007AFF' }}>{email}</Text>
             </Text>
 

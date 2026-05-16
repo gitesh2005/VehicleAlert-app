@@ -28,6 +28,45 @@ export const registerVehicle = async (
   }
 };
 
+export const searchVehiclesByPhoneNumber = async (phoneNumber: string) => {
+  // Normalize phone number (ensure +91 or match whatever format is stored)
+  const normalizedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
+  console.log("Searching for user with phone:", normalizedPhone);
+  
+  try {
+    const userSnapshot = await db.collection('users')
+      .where("phoneNumber", "==", normalizedPhone)
+      .limit(1)
+      .get();
+    
+    if (userSnapshot.empty) {
+      console.log("No user found for phone:", normalizedPhone);
+      return null;
+    }
+
+    const userId = userSnapshot.docs[0].id;
+    console.log("User found:", userId, ". Searching for their vehicles...");
+
+    const vehiclesSnapshot = await db.collection(VEHICLES_COLLECTION)
+      .where("userId", "==", userId)
+      .get();
+    
+    if (vehiclesSnapshot.empty) {
+      console.log("No vehicles found for user:", userId);
+      return null;
+    }
+
+    // Return the first vehicle found (or we could return all, but SearchScreen expects one)
+    const doc = vehiclesSnapshot.docs[0];
+    const data = { id: doc.id, ...doc.data() } as any;
+    console.log("Vehicle found via phone:", data);
+    return data;
+  } catch (error) {
+    console.error("Error searching vehicle by phone:", error);
+    throw error;
+  }
+};
+
 export const searchVehicle = async (vehicleNumber: string) => {
   const normalizedNumber = vehicleNumber.replace(/\s/g, '').toUpperCase();
   console.log("Searching for vehicle:", normalizedNumber);
