@@ -90,35 +90,38 @@ export default function OTPScreen() {
     try {
       const confirmation = getConfirmationResult();
       if (!confirmation) {
+        console.error('OTP Error: No confirmation result found');
         throw new Error('Verification session expired. Please go back and try again.');
       }
 
+      console.log('Verifying OTP code...');
       const userCredential = await confirmation.confirm(code);
       const user = userCredential.user;
+      console.log('OTP Verified successfully, user:', user?.uid);
 
       if (user) {
-        // Save user to Firestore if it's the first time or update lastLogin
-        const userRef = db.collection('users').doc(user.uid);
-        const userDoc = await userRef.get();
-        
-        if (!userDoc.exists) {
+        // Save user to Firestore - wrap in a separate try/catch to prevent blocking navigation
+        try {
+          console.log('Saving user to Firestore...');
+          const userRef = db.collection('users').doc(user.uid);
+          
+          // Use a shorter timeout for the document check if possible, or just set it
           await userRef.set({
             uid: user.uid,
             phoneNumber: user.phoneNumber,
-            createdAt: firestore.FieldValue.serverTimestamp(),
+            lastLogin: firestore.FieldValue.serverTimestamp(),
             authProvider: 'phone',
-            lastLogin: firestore.FieldValue.serverTimestamp(),
-          });
-        } else {
-          await userRef.update({
-            lastLogin: firestore.FieldValue.serverTimestamp(),
-            phoneNumber: user.phoneNumber || userDoc.data()?.phoneNumber,
-          });
+          }, { merge: true });
+          
+          console.log('User data synced to Firestore');
+        } catch (fsError) {
+          console.error('Firestore Error (Non-blocking):', fsError);
+          // We don't throw here so the user can still get into the app
         }
       }
 
       setLoading(false);
-      console.log('✅ OTP Verification Success');
+      console.log('✅ OTP Verification Success, navigating to welcome');
       router.push('/welcome');
     } catch (err: any) {
       setLoading(false);

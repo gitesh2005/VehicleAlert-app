@@ -54,25 +54,25 @@ export default function LoginScreen() {
       
       const { user } = userCredential;
       
-      // Save user to Firestore if it's the first time
-      const userRef = db.collection('users').doc(user.uid);
-      const userDoc = await userRef.get();
-      
-      if (!userDoc.exists) {
+      // Save user to Firestore - wrap in a separate try/catch to prevent blocking navigation
+      try {
+        console.log('Syncing Google user to Firestore:', user.uid);
+        const userRef = db.collection('users').doc(user.uid);
+        
         await userRef.set({
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
-          createdAt: firestore.FieldValue.serverTimestamp(),
           phoneNumber: user.phoneNumber,
           authProvider: 'google',
           lastLogin: firestore.FieldValue.serverTimestamp(),
-        });
-      } else {
-        await userRef.update({
-          lastLogin: firestore.FieldValue.serverTimestamp(),
-        });
+        }, { merge: true });
+        
+        console.log('Google user data synced to Firestore');
+      } catch (fsError) {
+        console.error('Firestore Error (Non-blocking):', fsError);
+        // We don't throw here so the user can still get into the app
       }
 
       setLoading(false);
@@ -95,21 +95,54 @@ export default function LoginScreen() {
 
     setLoading(true);
     const fullPhoneNumber = `+91${phoneNumber}`;
+    console.log('Attempting to send OTP to:', fullPhoneNumber);
+    
+    // Debug Alert 1
+    Alert.alert('Debug 1', `Initiating OTP request for ${fullPhoneNumber}`);
+
+    // Create a timeout promise to handle hangs
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('CONNECTION_TIMEOUT')), 20000)
+    );
 
     try {
-      const confirmation = await auth().signInWithPhoneNumber(fullPhoneNumber);
+      console.log('Calling signInWithPhoneNumber...');
+      
+      // Race the sign-in against a 20-second timeout
+      const confirmation = await Promise.race([
+        auth().signInWithPhoneNumber(fullPhoneNumber),
+        timeoutPromise
+      ]) as any;
+
+      // Debug Alert 2
+      Alert.alert('Debug 2', 'OTP Request successful, confirmation received');
+      
+      console.log('OTP sent successfully, confirmation result obtained');
       setConfirmationResult(confirmation);
       setLoading(false);
 
+      console.log('Navigating to OTP screen...');
+      // Debug Alert 3
+      Alert.alert('Debug 3', 'Attempting navigation to /otp');
+      
       router.push({
         pathname: '/otp',
         params: { phone: fullPhoneNumber }
       });
     } catch (err: any) {
+      console.error('Firebase Auth Error during signInWithPhoneNumber:', err);
       setLoading(false);
-      console.error('Firebase Auth Error:', err);
+      
+      // Debug Alert Error
+      Alert.alert('Debug Error', `Caught error: ${err.message || err.code || JSON.stringify(err)}`);
 
-      if (err.code === 'auth/billing-not-enabled' || err.code === 'auth/billing-not' || err.message?.includes('BILLING_NOT_ENABLED')) {
+      if (err.message === 'CONNECTION_TIMEOUT') {
+        Alert.alert(
+          'Connection Timeout',
+          'The request is taking too long. This might be due to a poor network connection or Firebase configuration issues. Please try again.',
+          [{ text: 'Retry' }]
+        );
+      } else if (err.code === 'auth/billing-not-enabled' || err.code === 'auth/billing-not' || err.message?.includes('BILLING_NOT_ENABLED')) {
         Alert.alert(
           '🔒 Firebase Billing Required',
           'Real OTP service requires a Firebase Blaze plan.\n\nPlease use a test phone number configured in your Firebase Console, or enable billing to use real numbers.',
@@ -119,6 +152,8 @@ export default function LoginScreen() {
         setError('Invalid phone number. Please check and try again.');
       } else if (err.code === 'auth/too-many-requests') {
         Alert.alert('Too Many Requests', 'Please wait a few minutes before trying again.');
+      } else if (err.code === 'auth/network-request-failed') {
+        Alert.alert('Network Error', 'Please check your internet connection and try again.');
       } else {
         Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
       }
